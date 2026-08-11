@@ -5,7 +5,7 @@ import { auth } from './firebase';
 import { useStore, isAdminEmail } from './store';
 import { Paper, Tag } from './types';
 import { Flag } from './components/Flag';
-import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon, LayoutGrid, List, ArrowUp, X, Sparkles, Clock } from 'lucide-react';
+import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon, LayoutGrid, LayoutDashboard, List, ArrowUp, ArrowLeft, X, Sparkles, Clock } from 'lucide-react';
 import { t, languageShortNames } from './i18n';
 import { setSeo, resetSeo, stripMarkdown, BASE_URL, setHreflangAlternates, createBreadcrumbJsonLd, addJsonLd } from './seo';
 import { htmlToText } from './utils';
@@ -705,17 +705,71 @@ function ProfileView() {
 
 function NotFoundView() {
   const navigate = useNavigate();
+  const { theme } = useStore();
+  const [animate, setAnimate] = useState(false);
+
   useEffect(() => {
     setSeo({ title: t('notFound.title'), description: t('notFound.title') });
+    setAnimate(true);
   }, []);
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[55vh] px-6 text-center">
-      <p className="text-7xl md:text-8xl font-bold bg-gradient-to-r from-accent-indigo to-accent-cyan bg-clip-text text-transparent mb-6">404</p>
-      <h1 className="text-2xl font-bold text-text-primary mb-3">{t('notFound.page')}</h1>
-      <p className="text-text-muted max-w-md mb-8">{t('notFound.title')}</p>
-      <button onClick={() => navigate('/')} className="px-6 py-3 bg-text-primary text-bg-primary rounded-full font-medium hover:bg-bg-hover transition-colors">
-        {t('empty.explore')}
-      </button>
+    <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+        <div className={`absolute top-1/4 left-1/4 w-64 h-64 rounded-full blur-3xl opacity-20 transition-all duration-1000 ${animate ? 'scale-100' : 'scale-0'}`}
+          style={{ background: theme === 'dark' ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.15)' }} />
+        <div className={`absolute bottom-1/4 right-1/4 w-64 h-64 rounded-full blur-3xl opacity-20 transition-all duration-1000 delay-200 ${animate ? 'scale-100' : 'scale-0'}`}
+          style={{ background: theme === 'dark' ? 'rgba(6, 182, 212, 0.3)' : 'rgba(6, 182, 212, 0.15)' }} />
+      </div>
+
+      <div className="relative z-10 max-w-md mx-auto">
+        {/* 404 number with animation */}
+        <div className={`mb-8 ${animate ? 'animate-in fade-in-down duration-700' : 'opacity-0'}`}>
+          <div className="relative inline-block">
+            <span className="relative z-10 text-8xl md:text-9xl font-extrabold bg-gradient-to-r from-accent-indigo via-accent-cyan to-accent-indigo bg-clip-text text-transparent animate-pulse-slow">
+              4<span className="relative" style={{ animationDelay: '0.3s' }}>0</span><span className="relative" style={{ animationDelay: '0.6s' }}>4</span>
+            </span>
+            {/* Glow effect behind numbers */}
+            <div className="absolute inset-0 bg-gradient-to-r from-accent-indigo/20 via-accent-cyan/20 to-accent-indigo/20 blur-2xl rounded-full opacity-50 animate-pulse" />
+          </div>
+        </div>
+
+        {/* Error message */}
+        <div className={`mb-4 ${animate ? 'animate-in fade-in duration-700 delay-200' : 'opacity-0'}`}>
+          <h1 className="text-3xl md:text-4xl font-bold text-text-primary mb-2">{t('notFound.page')}</h1>
+          <p className="text-lg text-text-secondary max-w-md mx-auto leading-relaxed">{t('notFound.title')}</p>
+        </div>
+
+        {/* Helpful suggestions */}
+        <div className={`mb-8 p-5 bg-bg-card border border-border-subtle rounded-2xl ${animate ? 'animate-in fade-in-up duration-700 delay-400' : 'opacity-0'}`}>
+          <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4 flex items-center justify-center gap-2">
+            <Sparkles size={16} className="text-accent-cyan" />
+            {t('notFound.suggestions')}
+          </h3>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <Link to="/" className="flex items-center justify-center gap-2 px-4 py-3 bg-bg-secondary hover:bg-bg-hover text-text-secondary hover:text-text-primary rounded-xl transition-colors">
+              <LayoutDashboard size={16} /> {t('notFound.home')}
+            </Link>
+            <Link to="/saved" className="flex items-center justify-center gap-2 px-4 py-3 bg-bg-secondary hover:bg-bg-hover text-text-secondary hover:text-text-primary rounded-xl transition-colors">
+              <Bookmark size={16} /> {t('nav.saved')}
+            </Link>
+          </div>
+        </div>
+
+        {/* Main CTA button */}
+        <div className={`${animate ? 'animate-in fade-in-up duration-700 delay-600' : 'opacity-0'}`}>
+          <button onClick={() => navigate('/')} className="group inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-accent-indigo to-accent-cyan text-white rounded-2xl font-semibold text-lg shadow-lg shadow-accent-indigo/25 hover:shadow-xl hover:shadow-accent-indigo/40 transition-all duration-300 hover:-translate-y-1">
+            <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
+            <span>{t('empty.explore')}</span>
+          </button>
+        </div>
+
+        {/* Footer hint */}
+        <p className={`mt-10 text-sm text-text-muted ${animate ? 'animate-in fade-in duration-700 delay-800' : 'opacity-0'}`}>
+          {t('notFound.hint')}
+        </p>
+      </div>
     </div>
   );
 }

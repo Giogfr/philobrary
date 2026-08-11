@@ -105,6 +105,10 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   const isMarkdown = paper.contentType === 'native_markdown';
   const isTranslating = pendingTranslations.has(`content:${paper.id}:${language}`);
 
+  const displayTitle = translatedTitle(paper);
+  const rawContent = stripDarkInlineColors(translatedContent(paper));
+  const displayContent = sanitizeHtml(rawContent);
+
   const scrollTo = useCallback((top: number, smooth = false) => {
     const el = document.getElementById('reader-main');
     if (!el) return;
@@ -231,10 +235,6 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
     }
     setShowShare(true);
   };
-
-  const displayTitle = translatedTitle(paper);
-  const rawContent = stripDarkInlineColors(translatedContent(paper));
-  const displayContent = sanitizeHtml(rawContent);
 
   const handleExportTxt = () => {
     const blob = new Blob([`${displayTitle}\nBy ${paper.author}\n\n${displayContent}`], { type: 'text/plain' });

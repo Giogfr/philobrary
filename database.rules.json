@@ -1,0 +1,25 @@
+{
+  "rules": {
+    ".read": "auth != null && auth.token.email == 'idontsayidontsay@gmail.com'",
+    ".write": "auth != null && auth.token.email == 'idontsayidontsay@gmail.com'",
+    "papers": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.email == 'idontsayidontsay@gmail.com' || auth.token.email == 'larpgio@gmail.com')",
+      "$paperId": {
+        "views": {
+          ".write": true
+        }
+      }
+    },
+    "tags": {
+      ".read": true,
+      ".write": "auth != null && (auth.token.email == 'idontsayidontsay@gmail.com' || auth.token.email == 'larpgio@gmail.com')"
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || auth.token.email == 'idontsayidontsay@gmail.com')",
+        ".write": "auth != null && (auth.uid == $uid || auth.token.email == 'idontsayidontsay@gmail.com')"
+      }
+    }
+  }
+}

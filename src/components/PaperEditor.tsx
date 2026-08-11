@@ -4,7 +4,7 @@ import { X, Save, Link as LinkIcon, Edit2, Bold, Italic, Strikethrough, List, Li
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { generateSlug, extractGoogleDocId } from '../utils';
+import { generateSlug, extractGoogleDocId, htmlToText } from '../utils';
 import { parseGoogleDocPaste } from '../googleDocPaste';
 import { t } from '../i18n';
 import { BASE_URL } from '../seo';
@@ -22,7 +22,8 @@ const STOPWORDS = new Set([
 ]);
 
 function buildSeoSuggestions(title: string, author: string, focusArea: string, content: string) {
-  const source = [title, focusArea, content.split(/\s+/).slice(0, 80).join(' ')].join(' ');
+  const cleanContent = htmlToText(content);
+  const source = [title, focusArea, cleanContent.split(/\s+/).slice(0, 80).join(' ')].join(' ');
   const words = source
     .toLowerCase()
     .replace(/[^a-z0-9\u00C0-\u024F\s'-]/g, ' ')
@@ -39,13 +40,7 @@ function buildSeoSuggestions(title: string, author: string, focusArea: string, c
     .join(', ');
 
   // Pull the description from the actual prose, leading with the title.
-  const plain = content
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/[#>*_`~|]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const plain = cleanContent;
 
   let lead = title;
   if (focusArea && !lead.toLowerCase().includes(focusArea.toLowerCase())) {

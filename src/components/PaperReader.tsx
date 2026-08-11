@@ -8,6 +8,7 @@ import { getRelativeTime } from '../utils';
 import { useStore } from '../store';
 import { t } from '../i18n';
 import { BASE_URL } from '../seo';
+import { stripDarkInlineColors } from '../utils';
 
 interface PaperReaderProps {
   paper: Paper;
@@ -96,7 +97,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, isBookmar
   };
 
   const displayTitle = translatedTitle(paper);
-  const displayContent = translatedContent(paper);
+  const displayContent = stripDarkInlineColors(translatedContent(paper));
 
   const handleExportTxt = () => {
     const blob = new Blob([`${displayTitle}\nBy ${paper.author}\n\n${displayContent}`], { type: 'text/plain' });

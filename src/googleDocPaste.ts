@@ -70,6 +70,28 @@ function escapeAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
+/** Returns true for colors that are black/near-black/transparent and should inherit the theme text color. */
+function isInheritableColor(color: string): boolean {
+  const c = color.trim().toLowerCase();
+  if (!c || c === 'transparent' || c === 'inherit' || c === 'initial') return true;
+  const rgb = c.match(/rgba?\((\d+)\s*[,\s]\s*(\d+)\s*[,\s]\s*(\d+)/);
+  if (rgb) {
+    const [r, g, b] = [parseInt(rgb[1], 10), parseInt(rgb[2], 10), parseInt(rgb[3], 10)];
+    return r <= 60 && g <= 60 && b <= 60;
+  }
+  const hex = c.replace(/^#/, '');
+  if (/^[0-9a-f]{3}$/i.test(hex)) {
+    const full = hex.split('').map(ch => ch + ch).join('');
+    const channels = [full.slice(0, 2), full.slice(2, 4), full.slice(4, 6)].map(h => parseInt(h, 16));
+    return channels.every(v => v <= 0x30);
+  }
+  if (/^[0-9a-f]{6}$/i.test(hex)) {
+    const channels = [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)].map(h => parseInt(h, 16));
+    return channels.every(v => v <= 0x30);
+  }
+  return false;
+}
+
 /** Fold Google Docs inline style hints into a single CSS style string. */
 function buildSpanStyle(el: Element): string {
   const parts: string[] = [];
@@ -78,8 +100,8 @@ function buildSpanStyle(el: Element): string {
   const fw = getStyle(el, 'font-weight');
   const fs = getStyle(el, 'font-style');
   const deco = getStyle(el, 'text-decoration');
-  if (bg) parts.push(`background-color:${bg}`);
-  if (color) parts.push(`color:${color}`);
+  if (bg && bg.toLowerCase() !== 'transparent') parts.push(`background-color:${bg}`);
+  if (color && !isInheritableColor(color)) parts.push(`color:${color}`);
   if (/^(700|bold)$/i.test(fw)) parts.push('font-weight:700');
   if (/italic/i.test(fs)) parts.push('font-style:italic');
   if (/underline/i.test(deco)) parts.push('text-decoration:underline');

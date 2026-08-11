@@ -12,6 +12,7 @@ import { Flag } from './components/Flag';
 import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { t, languageShortNames } from './i18n';
 import { setSeo, resetSeo, stripMarkdown, BASE_URL } from './seo';
+import { htmlToText } from './utils';
 
 type SortOption = 'newest' | 'oldest' | 'views' | 'alpha';
 
@@ -191,6 +192,9 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
             {filteredPapers.map(paper => {
               const paperTags = paper.tags.map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
               const isSaved = bookmarkedIds.includes(paper.id);
+              const excerpt = paper.metaDescription
+                ? paper.metaDescription
+                : htmlToText(paper.content).slice(0, 220);
               return (
                 <div 
                   key={paper.id} 
@@ -204,25 +208,29 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                     <Bookmark size={18} fill={isSaved ? "currentColor" : "none"} />
                   </button>
 
-                  <div className="flex flex-wrap gap-2 mb-5 pe-10">
-                    {translatedFocusArea(paper) && (
-                      <span className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/30 rounded-full">
-                        {translatedFocusArea(paper)}
-                      </span>
-                    )}
-                    {paperTags.slice(0, translatedFocusArea(paper) ? 1 : 2).map(t => (
-                      <span key={t.id} style={{ color: t.color, backgroundColor: `${t.color}15`, borderColor: `${t.color}30` }} className="px-3 py-1 text-xs font-semibold uppercase tracking-wider border rounded-full">
+                  <div className="flex flex-wrap gap-2 mb-4 pe-10">
+                    {paperTags.slice(0, 3).map(t => (
+                      <span key={t.id} style={{ color: t.color, backgroundColor: `${t.color}15`, borderColor: `${t.color}30` }} className="px-3 py-1 text-xs font-medium border rounded-full">
                         {translatedTagName(t)}
                       </span>
                     ))}
-                    {paperTags.length > (translatedFocusArea(paper) ? 1 : 2) && <span className="px-3 py-1 text-xs font-semibold uppercase tracking-wider border border-border-subtle bg-bg-secondary text-text-secondary rounded-full">+{paperTags.length - (translatedFocusArea(paper) ? 1 : 2)}</span>}
                   </div>
                   
-                  <h3 className="text-2xl font-bold text-text-primary mb-4 leading-snug group-hover:text-accent-cyan transition-colors line-clamp-3">
+                  <h3 className="text-xl md:text-2xl font-bold text-text-primary mb-3 leading-snug group-hover:text-accent-cyan transition-colors line-clamp-2">
                     {translatedTitle(paper)}
                   </h3>
+
+                  <p className="text-sm text-text-secondary leading-relaxed line-clamp-3 mb-5">
+                    {excerpt}
+                  </p>
+
+                  {translatedFocusArea(paper) && (
+                    <p className="text-xs font-medium text-accent-cyan mb-4">
+                      {translatedFocusArea(paper)}
+                    </p>
+                  )}
                   
-                  <div className="mt-auto pt-6 flex items-center justify-between border-t border-border-subtle/60">
+                  <div className="mt-auto pt-5 flex items-center justify-between border-t border-border-subtle/60">
                     <div className="flex items-center text-sm text-text-secondary">
                       <span className="truncate max-w-[140px] font-medium text-text-secondary">{paper.author}</span>
                     </div>

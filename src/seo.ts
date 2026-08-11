@@ -1,3 +1,5 @@
+import { htmlToText } from './utils';
+
 const SITE_NAME = 'Philobrary';
 const BASE_URL = (import.meta.env.APP_URL || 'https://philobrary.vercel.app').replace(/\/$/, '');
 
@@ -75,15 +77,7 @@ export function resetSeo() {
 }
 
 export function stripMarkdown(md: string): string {
-  return md
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`([^`]*)`/g, '$1')
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/[*_~>#\-|\s]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return htmlToText(md);
 }
 
 export { BASE_URL };

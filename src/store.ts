@@ -115,7 +115,7 @@ let state: StoreState = {
   user: { isAuthenticated: false, email: null, lastActive: 0 },
   bookmarkedIds: [],
   toasts: [],
-  theme: (readStorage('theme') as 'light' | 'dark') || 'dark',
+  theme: (readStorage('theme') as 'light' | 'dark') || 'light',
   language: (readStorage('language') as SupportedLanguage) || 'en',
   translations: {} as Record<SupportedLanguage, TranslationBucket>,
   pending: new Set(),

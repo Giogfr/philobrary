@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
 import { useNavigate } from 'react-router-dom';
 import { Paper, Tag } from '../types';
 import { X, Check, Clock, Calendar, ChevronLeft, List, ExternalLink, Download, Bookmark, Quote, Activity, FileDown, History, Type, AlignLeft, Sparkles, Sun, Moon, Globe, Eye, ArrowUp, Share2, AtSign, ThumbsUp, Send, MessageCircle, Briefcase, Copy, Shuffle, ZoomIn } from 'lucide-react';
@@ -11,6 +10,7 @@ import { t, languageShortNames } from '../i18n';
 import { BASE_URL } from '../seo';
 import { Flag } from './Flag';
 import { LanguageSelector } from './LanguageSelector';
+import DOMPurify from 'dompurify';
 
 interface PaperReaderProps {
   paper: Paper;
@@ -47,7 +47,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   const navigate = useNavigate();
   const [showLangSelector, setShowLangSelector] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [showOutline, setShowOutline] = useState(false);
+  const [showOutline, setShowOutline] = useState(true);
   const [showCitations, setShowCitations] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showFormatting, setShowFormatting] = useState(true);
@@ -79,7 +79,8 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
 
     if (isMarkdown) {
       const extractedHeadings: {id: string, text: string, level: number}[] = [];
-      const lines = paper.content.split('\n');
+      // Extract from displayContent (which includes translations) for accurate TOC
+      const lines = displayContent.split('\n');
       lines.forEach(line => {
         const match = line.match(/^(#{1,3})\s+(.+)$/);
         if (match) {
@@ -107,30 +108,34 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
         const currentTop = el.scrollTop;
         const scrollHeight = el.scrollHeight - el.clientHeight;
         const progress = scrollHeight > 0 ? (currentTop / scrollHeight) * 100 : 0;
-        setReadingProgress(progress);
-        setShowBackToTop(currentTop > 500);
+        
+        // Use requestAnimationFrame for smooth 60fps updates
+        requestAnimationFrame(() => {
+          setReadingProgress(progress);
+          setShowBackToTop(currentTop > 500);
 
-        // Auto-hide header on scroll down, show on scroll up
-        if (currentTop > 120 && currentTop > lastScrollTop.current + 10) {
-          setHeaderHidden(true);
-        } else if (currentTop < lastScrollTop.current - 10 || currentTop < 60) {
-          setHeaderHidden(false);
-        }
-        lastScrollTop.current = currentTop;
+          // Auto-hide header on scroll down, show on scroll up
+          if (currentTop > 120 && currentTop > lastScrollTop.current + 10) {
+            setHeaderHidden(true);
+          } else if (currentTop < lastScrollTop.current - 10 || currentTop < 60) {
+            setHeaderHidden(false);
+          }
+          lastScrollTop.current = currentTop;
 
-        // Scroll-spy TOC active heading tracking
-        if (headings.length > 0) {
-          for (let i = headings.length - 1; i >= 0; i--) {
-            const headingEl = document.getElementById(headings[i].id);
-            if (headingEl) {
-              const rect = headingEl.getBoundingClientRect();
-              if (rect.top <= 140) {
-                setActiveHeadingId(headings[i].id);
-                break;
+          // Scroll-spy TOC active heading tracking
+          if (headings.length > 0) {
+            for (let i = headings.length - 1; i >= 0; i--) {
+              const headingEl = document.getElementById(headings[i].id);
+              if (headingEl) {
+                const rect = headingEl.getBoundingClientRect();
+                if (rect.top <= 140) {
+                  setActiveHeadingId(headings[i].id);
+                  break;
+                }
               }
             }
           }
-        }
+        });
 
         // Throttled localStorage write of reading progress.
         if (saveProgressTimer.current) window.clearTimeout(saveProgressTimer.current);
@@ -152,7 +157,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
 
     window.addEventListener('keydown', handleKeyDown);
     const mainEl = document.getElementById('reader-main');
-    if (mainEl) mainEl.addEventListener('scroll', handleScroll);
+    if (mainEl) mainEl.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       if (mainEl) mainEl.removeEventListener('scroll', handleScroll);
@@ -191,7 +196,14 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   };
 
   const displayTitle = translatedTitle(paper);
-  const displayContent = stripDarkInlineColors(translatedContent(paper));
+  const rawContent = stripDarkInlineColors(translatedContent(paper));
+  const displayContent = DOMPurify.sanitize(rawContent, {
+    ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'div', 'span'],
+    ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'id', 'class', 'style', 'target', 'rel'],
+    ALLOW_DATA_ATTR: false,
+    RETURN_DOM: false,
+    RETURN_DOM_FRAGMENT: false,
+  });
 
   const handleExportTxt = () => {
     const blob = new Blob([`${displayTitle}\nBy ${paper.author}\n\n${displayContent}`], { type: 'text/plain' });
@@ -354,9 +366,23 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
             <span className="hidden sm:inline">{copied ? t('reader.copied') : t('reader.share')}</span>
           </button>
         </div>
-      </header>
+</header>
 
-      <div className="flex flex-1 overflow-hidden relative">
+            {/* Open in Google Docs button at top for google_doc type */}
+            {paper.contentType === 'google_doc' && paper.googleDocUrl && (
+              <div className="flex justify-end px-6 pb-4">
+                <a 
+                  href={paper.googleDocUrl} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="flex items-center px-4 py-2 text-sm font-medium text-white bg-accent-cyan hover:bg-accent-cyan/90 rounded-full transition-all shadow-lg shadow-accent-cyan/25"
+                >
+                  {t('reader.openDocs')} <ExternalLink size={16} className="ms-2" />
+                </a>
+              </div>
+            )}
+
+            <div className="flex flex-1 overflow-hidden relative">
         {showOutline && isMarkdown && headings.length > 0 && (
           <aside className="w-64 md:w-80 shrink-0 overflow-y-auto border-e border-border-subtle bg-bg-secondary/50 p-6 hidden md:block">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-6">{t('reader.contents')}</h3>
@@ -427,15 +453,13 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
             </header>
 
             {paper.contentType === 'google_doc' ? (
-              <div className="w-full flex flex-col gap-4">
-                <div className="flex justify-end">
-                  <a href={paper.googleDocUrl} target="_blank" rel="noreferrer" className="flex items-center px-4 py-2 text-sm font-medium text-white bg-accent-cyan hover:opacity-90 rounded-full transition-opacity">
-                    {t('reader.openDocs')} <ExternalLink size={16} className="ms-2" />
-                  </a>
-                </div>
-                <div className="w-full aspect-[8.5/11] bg-white rounded-3xl overflow-hidden shadow-2xl border border-border-subtle">
-                  <iframe src={paper.googleDocUrl?.replace('/edit', '/preview') || `${paper.googleDocUrl}?embedded=true`} className="w-full h-full border-0" title="Google Doc Preview" />
-                </div>
+              <div className="w-full aspect-[8.5/11] bg-white rounded-3xl overflow-hidden shadow-2xl border border-border-subtle">
+                <iframe 
+                  src={paper.googleDocUrl?.replace('/edit', '/preview') || `${paper.googleDocUrl}?embedded=true`} 
+                  className="w-full h-full border-0" 
+                  title="Google Doc Preview"
+                  sandbox="allow-scripts allow-same-origin allow-forms"
+                />
               </div>
             ) : (
               <div 
@@ -448,7 +472,6 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
               >
                 <ReactMarkdown 
                   remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[rehypeRaw]}
                   components={{
                     h1: ({node, children, ...props}) => { const { id } = headingSlug(String(children)); return <h1 id={id} {...props}>{children}</h1> },
                     h2: ({node, children, ...props}) => { const { id } = headingSlug(String(children)); return <h2 id={id} {...props}>{children}</h2> },
@@ -466,14 +489,6 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
                   {displayContent}
                 </ReactMarkdown>
                 
-                {paper.googleDocUrl && (
-                  <div className="flex justify-end mb-8">
-                    <a href={paper.googleDocUrl} target="_blank" rel="noreferrer" className="flex items-center px-4 py-2 text-sm font-medium text-white bg-accent-cyan hover:opacity-90 rounded-full transition-opacity">
-                      {t('reader.openDocs')} <ExternalLink size={16} className="ms-2" />
-                    </a>
-                  </div>
-                )}
-
                 <div className="mt-16 pt-8 border-t border-border-subtle flex flex-wrap justify-end gap-3">
                   <button onClick={handleCopyContent} className="flex items-center px-4 py-2 text-sm text-text-secondary bg-bg-card hover:text-text-primary hover:bg-bg-hover rounded-full transition-colors">
                     <Copy size={16} className="me-2 text-accent-indigo" /> {t('reader.copyContent')}

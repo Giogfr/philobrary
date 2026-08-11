@@ -597,8 +597,9 @@ const translatedContent = (paper: Paper): string => {
 };
 
 /** Returns the translated name for a tag. */
-const translatedTagName = (tag: Tag): string => {
-  if (state.language === 'en' || !tag) return tag.name;
+const translatedTagName = (tag: Tag | undefined): string => {
+  if (!tag) return '';
+  if (state.language === 'en') return tag.name;
   return state.translations[state.language]?.tags?.[tag.id] || tag.name;
 };
 

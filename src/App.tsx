@@ -365,6 +365,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
               const paperTags = paper.tags.map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
               const isSaved = bookmarkedIds.includes(paper.id);
               const primaryTag = paperTags[0];
+              const displayTags = paperTags.slice(0, 3);
               const tagColor = primaryTag?.color || '#4F46E5';
               const tagBg = `${tagColor}15`;
               const tagBorder = `${tagColor}30`;
@@ -388,12 +389,16 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                     {/* Tag accent bar at top */}
                     <div className="h-1.5 bg-[var(--tag-color)] w-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     
-                    {/* Header with tag + bookmark */}
+                    {/* Header with tags + bookmark */}
                     <div className="p-5 pt-4 flex items-start justify-between gap-3">
-                      <span className="inline-flex items-center px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded-full border transition-all"
-                        style={{ backgroundColor: tagBg, borderColor: tagBorder, color: tagText }}>
-                        {translatedTagName(primaryTag)}
-                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {displayTags.map(t => (
+                          <span key={t.id} className="inline-flex items-center px-2.5 py-1 text-xs font-semibold uppercase tracking-wider rounded-full border transition-all"
+                            style={{ backgroundColor: `${t.color}15`, borderColor: `${t.color}30`, color: t.color }}>
+                            {translatedTagName(t)}
+                          </span>
+                        ))}
+                      </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
                         aria-label={t('reader.bookmark')}
@@ -461,12 +466,16 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                   <div className="absolute top-0 bottom-0 start-0 w-1 bg-[var(--tag-color)] opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-s-2xl" />
 
                   <div className="flex-1 min-w-0 p-1 pr-0">
-                    {/* Tag + bookmark row */}
-                    <div className="flex items-center justify-between gap-3 mb-3">
-                      <span className="inline-flex items-center px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider rounded-full border transition-all"
-                        style={{ backgroundColor: tagBg, borderColor: tagBorder, color: tagText }}>
-                        {translatedTagName(primaryTag)}
-                      </span>
+                    {/* Tags + bookmark row */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {displayTags.map(t => (
+                          <span key={t.id} className="inline-flex items-center px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider rounded-full border transition-all"
+                            style={{ backgroundColor: `${t.color}15`, borderColor: `${t.color}30`, color: t.color }}>
+                            {translatedTagName(t)}
+                          </span>
+                        ))}
+                      </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
                         aria-label={t('reader.bookmark')}

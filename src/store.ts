@@ -215,7 +215,15 @@ const toggleTheme = () => setTheme(state.theme === 'light' ? 'dark' : 'light');
 
 onAuthStateChanged(auth, async (currentUser) => {
   if (currentUser) {
-    setState({ user: { isAuthenticated: true, email: currentUser.email, lastActive: Date.now() } });
+    setState({ 
+      user: { 
+        isAuthenticated: true, 
+        email: currentUser.email, 
+        lastActive: Date.now(),
+        displayName: currentUser.displayName || undefined,
+        photoURL: currentUser.photoURL || undefined
+      } 
+    });
     try {
       const userDoc = await get(ref(db, 'users/' + currentUser.uid));
       const data = userDoc.exists() ? userDoc.val() : {};
@@ -253,11 +261,18 @@ onValue(ref(db, 'papers'), (snapshot) => {
     .forEach(p => {
       update(ref(db, 'papers/' + p.id), { status: 'published', publishedAt: p.scheduledFor });
     });
+}, (error) => {
+  console.error('Papers listener error:', error);
+  // Fallback: if Firebase fails, still mark dataReady so UI doesn't stay blank
+  setState({ papers: [], dataReady: true });
 });
 
 onValue(ref(db, 'tags'), (snapshot) => {
   const data = snapshot.val();
   setState({ tags: data ? Object.values(data) as Tag[] : [], dataReady: true });
+}, (error) => {
+  console.error('Tags listener error:', error);
+  setState({ tags: [], dataReady: true });
 });
 
 // Apply persisted theme + language to the document on boot.
@@ -268,6 +283,13 @@ onValue(ref(db, 'tags'), (snapshot) => {
   root.lang = state.language;
   setCurrentLang(state.language);
 }
+
+// Fallback: ensure dataReady becomes true after 8s even if Firebase listeners fail
+setTimeout(() => {
+  if (!state.dataReady) {
+    setState({ dataReady: true });
+  }
+}, 8000);
 
 // ==========================================================================
 // ACTIONS
@@ -393,9 +415,11 @@ const incrementViews = async (id: string) => {
 const addPaper = async (paper: Paper) => {
   try {
     verifyAuth();
+    // Auto-fill author from profile displayName
+    const author = state.user.displayName || paper.author || 'Gio';
     if (paper.contentType === 'native_markdown') paper.content = sanitizeHTML(paper.content);
     
-    const cleaned = cleanPaperData(paper);
+    const cleaned = cleanPaperData({ ...paper, author });
     await set(ref(db, 'papers/' + paper.id), cleaned);
     showToast('toast.published', 'success');
   } catch (e) {

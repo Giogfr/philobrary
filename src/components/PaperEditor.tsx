@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Paper, Tag, PaperStatus, PaperContentType, Revision } from '../types';
-import { X, Save, Link as LinkIcon, Edit2, Bold, Italic, Strikethrough, List, ListOrdered, Quote, Code, Table, CheckSquare, Search, Sparkles } from 'lucide-react';
+import { X, Save, Link as LinkIcon, Edit2, Bold, Italic, Strikethrough, List, ListOrdered, Quote, Code, Table, CheckSquare, Search, Sparkles, Lock } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -8,6 +8,7 @@ import { generateSlug, extractGoogleDocId, htmlToText } from '../utils';
 import { parseGoogleDocPaste } from '../googleDocPaste';
 import { t } from '../i18n';
 import { BASE_URL } from '../seo';
+import { useStore } from '../store';
 
 const STOPWORDS = new Set([
   'the','a','an','and','or','but','of','in','on','at','to','for','with','by','from','as',
@@ -73,8 +74,9 @@ interface PaperEditorProps {
 }
 
 export const PaperEditor: React.FC<PaperEditorProps> = ({ paper, availableTags, onSave, onClose }) => {
+  const { user } = useStore();
   const [title, setTitle] = useState(paper?.title || '');
-  const [author, setAuthor] = useState(paper?.author || 'Gio');
+  const [author, setAuthor] = useState(paper?.author || user.displayName || 'Sheikh Gio');
   const [focusArea, setFocusArea] = useState(paper?.focusArea || '');
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(paper?.tags || []);
   const [contentType, setContentType] = useState<PaperContentType>(paper?.contentType || 'google_doc');
@@ -297,16 +299,21 @@ export const PaperEditor: React.FC<PaperEditorProps> = ({ paper, availableTags, 
               />
             </div>
             
-            <div className="space-y-1.5">
-              <input 
-                type="text"
-                value={author}
-                onChange={e => setAuthor(e.target.value)}
-                placeholder={t('editor.author')}
-                className="w-full px-4 py-3 bg-bg-card border border-border-subtle text-text-primary rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent-indigo/50 transition-all"
-                required
-              />
-            </div>
+  <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-text-secondary mb-1">{t('editor.author')}</label>
+                <div className="relative">
+                  <input 
+                    type="text"
+                    value={author}
+                    readOnly
+                    placeholder={t('editor.author')}
+                    className="w-full px-4 py-3 pr-10 bg-bg-card/60 border border-border-subtle text-text-secondary rounded-2xl cursor-not-allowed opacity-70 focus:outline-none"
+                    required
+                  />
+                  <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary/50" />
+                </div>
+                <p className="text-xs text-text-secondary/60 mt-1">{t('editor.authorLocked')}</p>
+              </div>
 
             <div className="space-y-1.5">
               <input 

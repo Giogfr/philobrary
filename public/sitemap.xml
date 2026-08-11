@@ -21,6 +21,11 @@
     <priority>0.2</priority>
   </url>
   <url>
+    <loc>https://philobrary.vercel.app/p/the-historical-reality-of-aisha-s-age</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://philobrary.vercel.app/p/why-abortion-is-murder</loc>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>

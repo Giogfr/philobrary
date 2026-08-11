@@ -10,7 +10,46 @@ import { t, languageShortNames } from '../i18n';
 import { BASE_URL } from '../seo';
 import { Flag } from './Flag';
 import { LanguageSelector } from './LanguageSelector';
-import DOMPurify from 'dompurify';
+const sanitizeHtml = (html: string): string => {
+  const allowedTags = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'div', 'span']);
+  const allowedAttrs: Record<string, Set<string>> = {
+    a: new Set(['href', 'title', 'target', 'rel']),
+    img: new Set(['src', 'alt', 'title']),
+    '*': new Set(['id', 'class', 'style']),
+  };
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const walk = (node: Node): Node | null => {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as Element;
+      if (!allowedTags.has(el.tagName.toLowerCase())) {
+        const span = doc.createElement('span');
+        span.textContent = el.textContent || '';
+        return span;
+      }
+      const allowed = allowedAttrs[el.tagName.toLowerCase()] || allowedAttrs['*'];
+      Array.from(el.attributes).forEach(attr => {
+        if (!allowed.has(attr.name)) {
+          el.removeAttribute(attr.name);
+        }
+      });
+    }
+    return node;
+  };
+  const sanitizeRecursive = (parent: Node) => {
+    Array.from(parent.childNodes).forEach(child => {
+      const newNode = walk(child);
+      if (newNode && newNode !== child) {
+        child.replaceWith(newNode);
+      }
+      if (newNode && newNode.childNodes && newNode.childNodes.length > 0) {
+        sanitizeRecursive(newNode);
+      }
+    });
+  };
+  sanitizeRecursive(doc.body);
+  return doc.body.innerHTML;
+};
 
 interface PaperReaderProps {
   paper: Paper;
@@ -197,13 +236,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
 
   const displayTitle = translatedTitle(paper);
   const rawContent = stripDarkInlineColors(translatedContent(paper));
-  const displayContent = DOMPurify.sanitize(rawContent, {
-    ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'div', 'span'],
-    ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'id', 'class', 'style', 'target', 'rel'],
-    ALLOW_DATA_ATTR: false,
-    RETURN_DOM: false,
-    RETURN_DOM_FRAGMENT: false,
-  });
+  const displayContent = sanitizeHtml(rawContent);
 
   const handleExportTxt = () => {
     const blob = new Blob([`${displayTitle}\nBy ${paper.author}\n\n${displayContent}`], { type: 'text/plain' });
@@ -231,7 +264,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   
   const relativeDate = paper.publishedAt ? getRelativeTime(paper.publishedAt) : '';
 
-  const paperTags = paper.tags.map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
+  const paperTags = (paper.tags || []).map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
 
   const year = paper.publishedAt ? new Date(paper.publishedAt).getFullYear() : new Date().getFullYear();
   const url = `${BASE_URL}/p/${paper.slug}`;
@@ -263,7 +296,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
 
   const relatedPapers = allPapers
     .filter(p => p.id !== paper.id && p.status === 'published')
-    .map(p => ({ paper: p, shared: p.tags.filter(tid => paper.tags.includes(tid)).length }))
+    .map(p => ({ paper: p, shared: (p.tags || []).filter(tid => (paper.tags || []).includes(tid)).length }))
     .filter(x => x.shared > 0)
     .sort((a, b) => b.shared - a.shared || b.paper.views - a.paper.views)
     .slice(0, 3)
@@ -512,7 +545,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {relatedPapers.map(p => {
-                    const pTags = p.tags.map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
+                    const pTags = (p.tags || []).map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
                     return (
                       <button
                         key={p.id}

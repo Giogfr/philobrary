@@ -66,7 +66,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedTagId, setSelectedTagId] = useState<string | 'All'>('All');
   const [selectedAuthor, setSelectedAuthor] = useState<string | 'All'>('All');
-  const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [sortBy, setSortBy] = useState<SortOption>('views');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
@@ -138,7 +138,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                           (paper.content && paper.content.toLowerCase().includes(q)) ||
                           paper.author.toLowerCase().includes(q) ||
                           (paper.keywords || '').toLowerCase().includes(q);
-    const matchesTag = selectedTagId === 'All' || paper.tags.includes(selectedTagId);
+    const matchesTag = selectedTagId === 'All' || (paper.tags || []).includes(selectedTagId);
     const matchesAuthor = selectedAuthor === 'All' || paper.author === selectedAuthor;
     return matchesSearch && matchesTag && matchesAuthor;
   }).sort((a, b) => {
@@ -238,14 +238,14 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                 return filteredPapers
                   .filter(p => !continueReading.some(c => c.id === p.id))
                   .map(p => {
-                    const overlap = p.tags.filter(tid => historyTagIds.has(tid)).length;
+                    const overlap = (p.tags || []).filter(tid => historyTagIds.has(tid)).length;
                     return { paper: p, score: overlap + Math.random() * 0.1 };
                   })
                   .sort((a, b) => b.score - a.score)
                   .slice(0, viewMode === 'grid' ? 6 : 4)
                   .map(({ paper }) => paper);
               })().map(paper => {
-                const paperTags = paper.tags.map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
+                const paperTags = (paper.tags || []).map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
                 const isSaved = bookmarkedIds.includes(paper.id);
                 const primaryTag = paperTags[0];
                 const displayTags = paperTags.slice(0, 3);
@@ -527,7 +527,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
         ) : (
           <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'grid grid-cols-1 gap-4'}>
             {filteredPapers.map(paper => {
-              const paperTags = paper.tags.map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
+              const paperTags = (paper.tags || []).map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
               const isSaved = bookmarkedIds.includes(paper.id);
               const primaryTag = paperTags[0];
               const displayTags = paperTags.slice(0, 3);
@@ -954,6 +954,24 @@ export default function App() {
         </div>
       </nav>
 
+      {/* Top Banner Ad */}
+      <div className="w-full max-w-7xl mx-auto px-4 py-3" aria-hidden="true">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              atOptions = {
+                'key' : 'ad027cb5c3ceeb72ca3cb64a95381d9d',
+                'format' : 'iframe',
+                'height' : 90,
+                'width' : 728,
+                'params' : {}
+              };
+            `
+          }}
+        />
+        <script src="https://www.highperformanceformat.com/ad027cb5c3ceeb72ca3cb64a95381d9d/invoke.js" async={true} />
+      </div>
+
       <main className="flex-1 w-full">
         <Suspense fallback={<RouteFallback />}>
           <Routes>
@@ -978,10 +996,20 @@ export default function App() {
             <Route path="/profile" element={<ProfileView />} />
             <Route path="*" element={<NotFoundView />} />
           </Routes>
-        </Suspense>
-      </main>
-      
-      <ToastContainer />
+</Suspense>
+        </main>
+
+        {/* Bottom Banner Ad */}
+        <div className="w-full max-w-7xl mx-auto px-4 py-3" aria-hidden="true">
+          <script
+            async={true}
+            data-cfasync="false"
+            src="https://pl30793084.effectivecpmnetwork.com/1870ca67fd74b2bae474fc178aad37eb/invoke.js"
+          />
+          <div id="container-1870ca67fd74b2bae474fc178aad37eb" style={{ width: '100%', maxWidth: 728, margin: '0 auto' }} />
+        </div>
+
+        <ToastContainer />
       {showLangSelector && <LanguageSelector onClose={() => setShowLangSelector(false)} />}
     </div>
   );

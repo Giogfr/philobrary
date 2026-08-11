@@ -37,11 +37,14 @@ export interface Paper {
   metaDescription?: string;
   keywords?: string;
   ogImage?: string;
+  featuredOrder?: number; // For featured/recommended papers ordering
 }
 
 export interface User {
   isAuthenticated: boolean;
   email: string | null;
   lastActive: number;
+  displayName?: string;
+  photoURL?: string;
 }
 

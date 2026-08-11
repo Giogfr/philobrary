@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Paper, Tag, PaperStatus } from '../types';
-import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search } from 'lucide-react';
+import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown } from 'lucide-react';
 import { PaperEditor } from './PaperEditor';
 import { t } from '../i18n';
 import { useStore, PREMADE_TAGS } from '../store';
@@ -29,7 +29,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const { setPaperStatus } = useStore();
   const [editingPaper, setEditingPaper] = useState<Paper | undefined>(undefined);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'papers' | 'analytics' | 'tags'>('papers');
+  const [activeTab, setActiveTab] = useState<'papers' | 'analytics' | 'tags' | 'featured'>('papers');
   
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#818CF8');
@@ -37,6 +37,46 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [tableSearch, setTableSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | PaperStatus>('all');
   const [selectedPaperIds, setSelectedPaperIds] = useState<Set<string>>(new Set());
+
+  // Featured papers state
+  const [newFeaturedPaperId, setNewFeaturedPaperId] = useState('');
+  const featuredPapers = papers
+    .filter(p => p.featuredOrder !== undefined && p.featuredOrder > 0)
+    .sort((a, b) => (a.featuredOrder || 0) - (b.featuredOrder || 0));
+  const availableForFeatured = papers
+    .filter(p => p.status === 'published' && !featuredPapers.some(fp => fp.id === p.id));
+
+  const addFeatured = () => {
+    if (!newFeaturedPaperId) return;
+    const maxOrder = featuredPapers.length > 0 ? Math.max(...featuredPapers.map(fp => fp.featuredOrder || 0)) : 0;
+    const paper = papers.find(p => p.id === newFeaturedPaperId);
+    if (paper) {
+      onUpdate({ ...paper, featuredOrder: maxOrder + 1 });
+    }
+    setNewFeaturedPaperId('');
+  };
+
+  const removeFeatured = (id: string) => {
+    const paper = papers.find(p => p.id === id);
+    if (paper) {
+      onUpdate({ ...paper, featuredOrder: undefined });
+    }
+  };
+
+  const moveFeatured = (id: string, direction: 'up' | 'down') => {
+    const fp = featuredPapers.find(f => f.id === id);
+    if (!fp) return;
+    const currentOrder = fp.featuredOrder || 0;
+    const targetOrder = direction === 'up' ? currentOrder - 1 : currentOrder + 1;
+    const targetFp = featuredPapers.find(f => (f.featuredOrder || 0) === targetOrder);
+    if (targetFp) {
+      onUpdate({ ...targetFp, featuredOrder: currentOrder });
+    }
+    const paper = papers.find(p => p.id === id);
+    if (paper) {
+      onUpdate({ ...paper, featuredOrder: targetOrder });
+    }
+  };
 
   const handleDuplicate = (paper: Paper) => {
     const copy: Paper = {
@@ -134,7 +174,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const topViewed = [...papers].sort((a, b) => b.views - a.views).slice(0, 5);
   const maxViews = Math.max(...papers.map(p => p.views), 0);
   const tagCounts = tags
-    .map(tag => ({ tag, count: papers.filter(p => p.tags.includes(tag.id)).length }))
+    .map(tag => ({ tag, count: papers.filter(p => (p.tags || []).includes(tag.id)).length }))
     .filter(t => t.count > 0)
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
@@ -197,6 +237,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </button>
         <button onClick={() => setActiveTab('analytics')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'analytics' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
           <BarChart2 size={16} className="me-2" /> {t('admin.tab.analytics')}
+        </button>
+        <button onClick={() => setActiveTab('featured')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'featured' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
+          <Star size={16} className="me-2" /> {t('admin.tab.featured')}
         </button>
         <button onClick={() => setActiveTab('tags')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'tags' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
           <TagIcon size={16} className="me-2" /> {t('admin.tab.tags')}
@@ -456,14 +499,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button onClick={() => handleBulkStatusChange('archived')} className="px-3 py-1.5 text-xs font-medium bg-bg-card text-text-muted border border-border-subtle rounded-full hover:bg-bg-hover transition-colors">
                   Archive All
                 </button>
-                <button onClick={handleBulkDelete} className="px-3 py-1.5 text-xs font-medium bg-danger/20 text-danger border border-danger/30 rounded-full hover:bg-danger/30 transition-colors">
+<button onClick={handleBulkDelete} className="px-3 py-1.5 text-xs font-medium bg-danger/20 text-danger border border-danger/30 rounded-full hover:bg-danger/30 transition-colors">
                   Delete Selected
                 </button>
               </div>
             </div>
-          )}
+            )}
 
-          {/* Table */}
+          {/* Papers Table */}
           <div className="bg-bg-card border border-border-subtle rounded-3xl overflow-hidden shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-start text-sm whitespace-nowrap">
@@ -491,16 +534,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <tr>
                       <td colSpan={8} className="px-6 py-16 text-center">
                         <LayoutDashboard size={48} className="mx-auto text-text-muted mb-4" />
-                        <h3 className="text-xl font-medium text-text-primary mb-2">No matching papers</h3>
-                        <p className="text-text-muted mb-6">Try clearing your search query or status filter.</p>
+                        <h3 className="text-xl font-medium text-text-primary mb-2">{t('admin.table.noResults')}</h3>
+                        <p className="text-text-muted mb-6">{t('admin.table.noResultsHint')}</p>
                         <button onClick={() => { setTableSearch(''); setStatusFilter('all'); }} className="inline-flex items-center px-6 py-3 font-medium text-bg-primary bg-text-primary hover:bg-bg-hover rounded-full transition-colors">
-                          Clear Filters
+                          {t('admin.table.clearFilters')}
                         </button>
                       </td>
                     </tr>
                   ) : (
                     filteredTablePapers.map(paper => {
-                      const paperTagObjs = paper.tags.map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
+                      const paperTagObjs = (paper.tags || []).map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
                       return (
                         <tr key={paper.id} className={`hover:bg-bg-secondary/50 transition-colors ${selectedPaperIds.has(paper.id) ? 'bg-accent-indigo/5' : ''}`}>
                           <td className="px-4 py-4 text-center">
@@ -594,6 +637,74 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {activeTab === 'featured' && (
+        <div className="space-y-6">
+          <div className="bg-bg-card border border-border-subtle rounded-3xl p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+              <Star size={20} className="text-accent-cyan" /> {t('admin.featured.title')}
+            </h2>
+            <p className="text-text-secondary mb-6">{t('admin.featured.description')}</p>
+            {featuredPapers.length === 0 ? (
+              <div className="text-center py-12">
+                <Star size={48} className="mx-auto text-text-muted mb-4" />
+                <h3 className="text-xl font-medium text-text-primary mb-2">{t('admin.featured.empty.title')}</h3>
+                <p className="text-text-muted mb-6">{t('admin.featured.empty.description')}</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {featuredPapers.map((fp, index) => (
+                  <div key={fp.id} className="flex items-center gap-4 p-4 bg-bg-secondary border border-border-subtle rounded-2xl">
+                    <span className="w-10 h-10 flex items-center justify-center bg-accent-indigo/20 text-accent-indigo rounded-xl font-bold text-lg">{index + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-text-primary truncate">{fp.title}</p>
+                      <p className="text-sm text-text-muted">{fp.author}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => moveFeatured(fp.id, 'up')} disabled={index === 0} className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <ChevronUp size={18} />
+                      </button>
+                      <button onClick={() => moveFeatured(fp.id, 'down')} disabled={index === featuredPapers.length - 1} className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <ChevronDown size={18} />
+                      </button>
+                      <button onClick={() => removeFeatured(fp.id)} className="p-2 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-lg transition-colors">
+                        <X size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-bg-card border border-border-subtle rounded-3xl p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-text-primary mb-4">{t('admin.featured.addPaper')}</h2>
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <label className="text-sm text-text-secondary block mb-2">{t('admin.featured.selectPaper')}</label>
+                <select
+                  value={newFeaturedPaperId}
+                  onChange={e => setNewFeaturedPaperId(e.target.value)}
+                  className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle text-text-primary rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent-indigo/50"
+                >
+                  <option value="">{t('admin.featured.selectPlaceholder')}</option>
+                  {availableForFeatured.map(p => (
+                    <option key={p.id} value={p.id}>{p.title} ({p.author})</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={addFeatured}
+                disabled={!newFeaturedPaperId}
+                className="md:w-fit flex items-center gap-2 px-6 py-3 bg-text-primary text-bg-primary font-medium rounded-2xl hover:bg-bg-hover transition-colors disabled:opacity-50"
+              >
+                <Plus size={18} className="me-2" /> {t('admin.featured.add')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

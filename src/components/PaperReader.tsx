@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useNavigate } from 'react-router-dom';
 import { Paper, Tag } from '../types';
-import { X, Check, Clock, Calendar, ChevronLeft, List, ExternalLink, Download, Bookmark, Quote, Activity, FileDown, History, Type, AlignLeft, Sparkles, Sun, Moon, Globe, Eye, ArrowUp, Share2, AtSign, ThumbsUp, Send, MessageCircle, Briefcase, Copy } from 'lucide-react';
+import { X, Check, Clock, Calendar, ChevronLeft, List, ExternalLink, Download, Bookmark, Quote, Activity, FileDown, History, Type, AlignLeft, Sparkles, Sun, Moon, Globe, Eye, ArrowUp, Share2, AtSign, ThumbsUp, Send, MessageCircle, Briefcase, Copy, Shuffle, ZoomIn } from 'lucide-react';
 import { getRelativeTime, headingSlug, stripDarkInlineColors } from '../utils';
 import { useStore } from '../store';
 import { t, languageShortNames } from '../i18n';
@@ -57,7 +57,13 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   const [fontSize, setFontSize] = useState<FontSize>('lg');
   const [fontFamily, setFontFamily] = useState<FontFamily>('Inter');
   const [lineSpacing, setLineSpacing] = useState<LineSpacing>('normal');
+  const [isSepia, setIsSepia] = useState(false);
+  const [activeHeadingId, setActiveHeadingId] = useState<string>('');
+  const [headerHidden, setHeaderHidden] = useState(false);
+  const [zoomedImg, setZoomedImg] = useState<string | null>(null);
+  const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
   const saveProgressTimer = useRef<number | null>(null);
+  const lastScrollTop = useRef(0);
 
   const isMarkdown = paper.contentType === 'native_markdown';
   const isTranslating = pendingTranslations.has(`content:${paper.id}:${language}`);
@@ -98,10 +104,33 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
     const handleScroll = () => {
       const el = document.getElementById('reader-main');
       if (el) {
+        const currentTop = el.scrollTop;
         const scrollHeight = el.scrollHeight - el.clientHeight;
-        const progress = scrollHeight > 0 ? (el.scrollTop / scrollHeight) * 100 : 0;
+        const progress = scrollHeight > 0 ? (currentTop / scrollHeight) * 100 : 0;
         setReadingProgress(progress);
-        setShowBackToTop(el.scrollTop > 500);
+        setShowBackToTop(currentTop > 500);
+
+        // Auto-hide header on scroll down, show on scroll up
+        if (currentTop > 120 && currentTop > lastScrollTop.current + 10) {
+          setHeaderHidden(true);
+        } else if (currentTop < lastScrollTop.current - 10 || currentTop < 60) {
+          setHeaderHidden(false);
+        }
+        lastScrollTop.current = currentTop;
+
+        // Scroll-spy TOC active heading tracking
+        if (headings.length > 0) {
+          for (let i = headings.length - 1; i >= 0; i--) {
+            const headingEl = document.getElementById(headings[i].id);
+            if (headingEl) {
+              const rect = headingEl.getBoundingClientRect();
+              if (rect.top <= 140) {
+                setActiveHeadingId(headings[i].id);
+                break;
+              }
+            }
+          }
+        }
 
         // Throttled localStorage write of reading progress.
         if (saveProgressTimer.current) window.clearTimeout(saveProgressTimer.current);
@@ -111,13 +140,25 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
       }
     };
 
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (zoomedImg) setZoomedImg(null);
+        else if (showCitations) setShowCitations(false);
+        else if (showShare) setShowShare(false);
+        else if (showLangSelector) setShowLangSelector(false);
+        else if (showOutline) setShowOutline(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
     const mainEl = document.getElementById('reader-main');
     if (mainEl) mainEl.addEventListener('scroll', handleScroll);
     return () => {
+      window.removeEventListener('keydown', handleKeyDown);
       if (mainEl) mainEl.removeEventListener('scroll', handleScroll);
       if (saveProgressTimer.current) window.clearTimeout(saveProgressTimer.current);
     };
-  }, [paper, isMarkdown, scrollTo]);
+  }, [paper, isMarkdown, scrollTo, headings, zoomedImg, showCitations, showShare, showLangSelector, showOutline]);
 
   useEffect(() => {
     if (isMarkdown) {
@@ -185,6 +226,28 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   const citationAPA = `${paper.author}. (${year}). ${displayTitle}. Philobrary. Retrieved from ${url}`;
   const citationMLA = `${paper.author}. "${displayTitle}." Philobrary, ${formattedDate}, ${url}.`;
   const citationChicago = `${paper.author}. "${displayTitle}." Philobrary, ${formattedDate}. ${url}.`;
+  const handleCopyContent = () => {
+    navigator.clipboard.writeText(`# ${displayTitle}\n\nBy ${paper.author}\n\n${displayContent}`);
+    showToast('reader.copiedContent', 'success');
+  };
+
+  const citationBibTeX = `@misc{philobrary_${paper.slug.replace(/[^a-zA-Z0-9_]/g, '')},\n  author = {${paper.author}},\n  title = {${displayTitle}},\n  year = {${year}},\n  howpublished = {\\url{${url}}},\n  note = {Philobrary Library}\n}`;
+
+  const handleCopyCitation = (format: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedFormat(format);
+    showToast('reader.citationCopied', 'success');
+    setTimeout(() => setCopiedFormat(null), 2000);
+  };
+
+  const openRandomPaper = () => {
+    const candidates = allPapers.filter(p => p.id !== paper.id && p.status === 'published');
+    if (candidates.length === 0) return;
+    const random = candidates[Math.floor(Math.random() * candidates.length)];
+    openPaper(random);
+  };
+
+  const timeLeftMinutes = Math.max(1, Math.round((paper.readingTimeMinutes || 1) * Math.max(0, 1 - readingProgress / 100)));
 
   const relatedPapers = allPapers
     .filter(p => p.id !== paper.id && p.status === 'published')
@@ -218,11 +281,11 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   const closeModal = (setter: (v: boolean) => void) => setter(false);
 
   return (
-    <div className="reader-root fixed inset-0 z-40 flex flex-col bg-bg-primary overflow-hidden">
+    <div className={`reader-root fixed inset-0 z-40 flex flex-col bg-bg-primary overflow-hidden ${isSepia ? 'reader-sepia' : ''}`}>
       {/* Progress Bar */}
       <div className="absolute top-0 start-0 h-1 bg-accent-indigo transition-all duration-150 z-50" style={{ width: `${readingProgress}%` }} />
       
-      <header className="flex items-center justify-between px-4 md:px-6 py-4 bg-bg-primary/80 backdrop-blur-md border-b border-border-subtle z-10 shrink-0 gap-3">
+      <header className={`flex items-center justify-between px-4 md:px-6 py-4 bg-bg-primary/80 backdrop-blur-md border-b border-border-subtle z-10 shrink-0 gap-3 transition-transform duration-200 ${headerHidden ? '-translate-y-full' : 'translate-y-0'}`}>
         <button 
           onClick={onClose}
           className="flex items-center px-3 md:px-4 py-2 text-sm font-medium text-text-secondary bg-bg-card hover:bg-bg-hover hover:text-text-primary rounded-full transition-colors shrink-0"
@@ -232,6 +295,14 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
         </button>
 
         <div className="flex items-center gap-1.5 md:gap-2 overflow-x-auto no-scrollbar">
+          <button
+            onClick={() => setIsSepia(!isSepia)}
+            className={`p-2.5 rounded-full transition-colors shrink-0 ${isSepia ? 'bg-[#E8DCC0] text-[#3B2F1D]' : 'bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`}
+            title={isSepia ? t('reader.normalMode') : t('reader.sepia')}
+          >
+            <Type size={18} />
+          </button>
+
           <button
             onClick={toggleTheme}
             title={theme === 'dark' ? t('theme.light') : t('theme.dark')}
@@ -292,7 +363,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
             <ul className="space-y-3 text-sm">
               {headings.map((h, i) => (
                 <li key={i} className={`${h.level === 1 ? 'ms-0 font-medium text-text-secondary' : h.level === 2 ? 'ms-4 text-text-muted' : 'ms-8 text-text-muted'}`}>
-                  <button onClick={() => jumpToHeading(h.id)} className="hover:text-accent-cyan transition-colors block py-1 text-start w-full">{h.text}</button>
+                  <button onClick={() => jumpToHeading(h.id)} className={`hover:text-accent-cyan transition-colors block py-1 text-start w-full ${activeHeadingId === h.id ? 'text-accent-cyan font-semibold border-s-2 border-accent-cyan ps-2' : ''}`}>{h.text}</button>
                 </li>
               ))}
             </ul>
@@ -343,7 +414,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
                 </div>
                 
                 <div className="flex flex-col gap-1 ms-auto">
-                  <div className="flex items-center justify-end"><Clock size={14} className="me-2 opacity-70" /> {paper.readingTimeMinutes} {t('reader.minRead')}</div>
+                  <div className="flex items-center justify-end"><Clock size={14} className="me-2 opacity-70" /> {paper.readingTimeMinutes} {t('reader.minRead')} ({timeLeftMinutes} {t('reader.timeLeft')})</div>
                   {isMarkdown && (
                     <div className="flex items-center justify-end text-xs text-text-muted"><Activity size={12} className="me-1" /> {paper.wordCount.toLocaleString()} {t('reader.words')}</div>
                   )}
@@ -381,7 +452,15 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
                   components={{
                     h1: ({node, children, ...props}) => { const { id } = headingSlug(String(children)); return <h1 id={id} {...props}>{children}</h1> },
                     h2: ({node, children, ...props}) => { const { id } = headingSlug(String(children)); return <h2 id={id} {...props}>{children}</h2> },
-                    h3: ({node, children, ...props}) => { const { id } = headingSlug(String(children)); return <h3 id={id} {...props}>{children}</h3> }
+                    h3: ({node, children, ...props}) => { const { id } = headingSlug(String(children)); return <h3 id={id} {...props}>{children}</h3> },
+                    img: ({node, src, alt, ...props}) => (
+                      <span className="relative inline-block my-4 group cursor-pointer" onClick={() => src && setZoomedImg(src)}>
+                        <img src={src} alt={alt || ''} className="rounded-2xl border border-border-subtle shadow-md max-w-full h-auto transition-transform group-hover:scale-[1.01]" {...props} />
+                        <span className="absolute bottom-3 end-3 p-2 bg-bg-primary/80 backdrop-blur-md rounded-full text-text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ZoomIn size={16} />
+                        </span>
+                      </span>
+                    )
                   }}
                 >
                   {displayContent}
@@ -395,7 +474,10 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
                   </div>
                 )}
 
-                <div className="mt-16 pt-8 border-t border-border-subtle flex justify-end gap-3">
+                <div className="mt-16 pt-8 border-t border-border-subtle flex flex-wrap justify-end gap-3">
+                  <button onClick={handleCopyContent} className="flex items-center px-4 py-2 text-sm text-text-secondary bg-bg-card hover:text-text-primary hover:bg-bg-hover rounded-full transition-colors">
+                    <Copy size={16} className="me-2 text-accent-indigo" /> {t('reader.copyContent')}
+                  </button>
                   <button onClick={handleExportTxt} className="flex items-center px-4 py-2 text-sm text-text-secondary bg-bg-card hover:text-text-primary hover:bg-bg-hover rounded-full transition-colors">
                     <FileDown size={16} className="me-2 text-accent-cyan" /> {t('reader.exportTxt')}
                   </button>
@@ -539,30 +621,32 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
       {/* Citations Modal */}
       {showCitations && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg-primary/80 backdrop-blur-md" onClick={() => closeModal(setShowCitations)}>
-          <div className="relative w-full max-w-lg p-8 bg-bg-card border border-border-subtle shadow-2xl rounded-3xl" onClick={e => e.stopPropagation()}>
+          <div className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto p-8 bg-bg-card border border-border-subtle shadow-2xl rounded-3xl" onClick={e => e.stopPropagation()}>
             <button onClick={() => closeModal(setShowCitations)} className="absolute top-4 end-4 p-2 text-text-secondary hover:text-text-primary bg-bg-secondary hover:bg-bg-hover rounded-full transition-colors">
               <X size={20} />
             </button>
             <h2 className="text-2xl font-bold text-text-primary mb-6">{t('reader.citeTitle')}</h2>
             <div className="space-y-5 text-sm">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-accent-indigo">APA</span>
+              {[
+                { label: 'APA', format: 'apa', color: 'text-accent-indigo', text: citationAPA },
+                { label: 'MLA', format: 'mla', color: 'text-accent-cyan', text: citationMLA },
+                { label: 'Chicago', format: 'chicago', color: 'text-success', text: citationChicago },
+                { label: t('reader.bibtex'), format: 'bibtex', color: 'text-warning', text: citationBibTeX }
+              ].map(item => (
+                <div key={item.format}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-xs font-semibold uppercase tracking-wider ${item.color}`}>{item.label}</span>
+                    <button
+                      onClick={() => handleCopyCitation(item.format, item.text)}
+                      className="flex items-center text-xs text-text-muted hover:text-text-primary transition-colors gap-1"
+                    >
+                      {copiedFormat === item.format ? <Check size={12} className="text-success" /> : <Copy size={12} />}
+                      {copiedFormat === item.format ? t('reader.copied') : t('reader.copyCitation')}
+                    </button>
+                  </div>
+                  <div className="p-4 bg-bg-secondary rounded-2xl border border-border-subtle text-text-secondary font-mono text-xs select-all leading-relaxed whitespace-pre-wrap">{item.text}</div>
                 </div>
-                <div className="p-4 bg-bg-secondary rounded-2xl border border-border-subtle text-text-secondary font-serif select-all leading-relaxed">{citationAPA}</div>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-accent-cyan">MLA</span>
-                </div>
-                <div className="p-4 bg-bg-secondary rounded-2xl border border-border-subtle text-text-secondary font-serif select-all leading-relaxed">{citationMLA}</div>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-success">Chicago</span>
-                </div>
-                <div className="p-4 bg-bg-secondary rounded-2xl border border-border-subtle text-text-secondary font-serif select-all leading-relaxed">{citationChicago}</div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -576,12 +660,12 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
               <X size={20} />
             </button>
             <h2 className="text-2xl font-bold text-text-primary mb-2">{t('reader.shareTitle')}</h2>
-            <p className="text-sm text-text-secondary mb-6">{displayTitle}</p>
+            <p className="text-sm text-text-secondary mb-6 line-clamp-1">{displayTitle}</p>
 
             {navigator.share && (
               <button
                 onClick={() => { closeModal(setShowShare); navigator.share({ title: displayTitle, url: shareUrl }); }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 mb-6 bg-text-primary text-bg-primary rounded-2xl font-medium hover:bg-bg-hover transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 mb-4 bg-text-primary text-bg-primary rounded-2xl font-medium hover:bg-bg-hover transition-colors"
               >
                 <Share2 size={18} /> {t('reader.shareSystem')}
               </button>
@@ -595,7 +679,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
               {copied ? t('reader.copied') : t('reader.copyLink')}
             </button>
 
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-5 gap-3 mb-6">
               {socialLinks.map(s => (
                 <a
                   key={s.name}
@@ -610,7 +694,30 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
                 </a>
               ))}
             </div>
+
+            {/* QR Code Section */}
+            <div className="pt-4 border-t border-border-subtle flex flex-col items-center">
+              <p className="text-xs text-text-muted mb-3">{t('reader.scanQR')}</p>
+              <div className="p-3 bg-white rounded-2xl border border-border-subtle shadow-sm">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(shareUrl)}`}
+                  alt="QR Code"
+                  className="w-32 h-32"
+                  loading="lazy"
+                />
+              </div>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Image Zoom Modal */}
+      {zoomedImg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md cursor-zoom-out" onClick={() => setZoomedImg(null)}>
+          <button onClick={() => setZoomedImg(null)} className="absolute top-6 end-6 p-3 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors">
+            <X size={24} />
+          </button>
+          <img src={zoomedImg} alt="Zoomed view" className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl" />
         </div>
       )}
 

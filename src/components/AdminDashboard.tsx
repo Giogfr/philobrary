@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Paper, Tag, PaperStatus } from '../types';
-import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark } from 'lucide-react';
+import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search } from 'lucide-react';
 import { PaperEditor } from './PaperEditor';
 import { t } from '../i18n';
 import { useStore, PREMADE_TAGS } from '../store';
@@ -34,6 +34,67 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#818CF8');
 
+  const [tableSearch, setTableSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | PaperStatus>('all');
+  const [selectedPaperIds, setSelectedPaperIds] = useState<Set<string>>(new Set());
+
+  const handleDuplicate = (paper: Paper) => {
+    const copy: Paper = {
+      ...paper,
+      id: crypto.randomUUID(),
+      title: `${paper.title} (Copy)`,
+      slug: `${paper.slug}-copy-${Date.now().toString(36)}`,
+      status: 'draft',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      publishedAt: undefined,
+      views: 0,
+      savedCount: 0,
+    };
+    onAdd(copy);
+  };
+
+  const handleExportJson = () => {
+    const dump = {
+      exportedAt: new Date().toISOString(),
+      papers,
+      tags,
+    };
+    const blob = new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `philobrary_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedPaperIds.size === filteredTablePapers.length) {
+      setSelectedPaperIds(new Set());
+    } else {
+      setSelectedPaperIds(new Set(filteredTablePapers.map(p => p.id)));
+    }
+  };
+
+  const toggleSelectPaper = (id: string) => {
+    const next = new Set(selectedPaperIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedPaperIds(next);
+  };
+
+  const handleBulkStatusChange = (status: PaperStatus) => {
+    selectedPaperIds.forEach(id => setPaperStatus(id, status));
+    setSelectedPaperIds(new Set());
+  };
+
+  const handleBulkDelete = () => {
+    if (!window.confirm(`Delete ${selectedPaperIds.size} selected papers?`)) return;
+    selectedPaperIds.forEach(id => onDelete(id));
+    setSelectedPaperIds(new Set());
+  };
+
   const handleOpenEditor = (paper?: Paper) => {
     setEditingPaper(paper);
     setIsEditorOpen(true);
@@ -51,6 +112,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onAddTag({ id: crypto.randomUUID(), name: newTagName, color: newTagColor });
     setNewTagName('');
   };
+
+  const filteredTablePapers = papers
+    .filter(p => {
+      const matchSearch = !tableSearch || p.title.toLowerCase().includes(tableSearch.toLowerCase()) || p.author.toLowerCase().includes(tableSearch.toLowerCase());
+      const matchStatus = statusFilter === 'all' || p.status === statusFilter;
+      return matchSearch && matchStatus;
+    })
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   const existingTagNames = new Set(tags.map(t => t.name.toLowerCase()));
   const missingPremade = PREMADE_TAGS.filter(t => !existingTagNames.has(t.name.toLowerCase()));
@@ -104,13 +173,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <p className="text-text-secondary mt-1">{t('admin.subtitle')}</p>
         </div>
         <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={handleExportJson}
+            className="flex items-center px-4 py-2.5 font-medium text-text-secondary bg-bg-card hover:bg-bg-hover hover:text-text-primary border border-border-subtle rounded-full transition-colors text-sm"
+            title="Export JSON Backup"
+          >
+            <Download size={16} className="me-2 text-accent-cyan" /> Backup JSON
+          </button>
           <button 
             onClick={() => handleOpenEditor()}
             className="flex items-center px-5 py-2.5 font-medium text-bg-primary bg-text-primary hover:bg-bg-hover rounded-full transition-colors"
           >
-            <Plus size={18} className="me-2" />
-            {t('admin.new')}
+            <Plus size={18} className="me-2" /> {t('admin.new')}
           </button>
+        </div>
         </div>
       </div>
 
@@ -325,84 +402,195 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )}
 
       {activeTab === 'papers' && (
-        <div className="bg-bg-card border border-border-subtle rounded-3xl overflow-hidden shadow-xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-start text-sm whitespace-nowrap">
-              <thead className="bg-bg-secondary text-text-secondary">
-                <tr>
-                  <th className="px-6 py-4 font-medium text-start">{t('admin.table.title')}</th>
-                  <th className="px-6 py-4 font-medium text-start">{t('admin.table.status')}</th>
-                  <th className="px-6 py-4 font-medium text-start">{t('admin.table.type')}</th>
-                  <th className="px-6 py-4 font-medium text-start">{t('admin.table.updated')}</th>
-                  <th className="px-6 py-4 font-medium text-end">{t('admin.table.actions')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-subtle">
-                {papers.length === 0 ? (
+        <div className="space-y-4">
+          {/* Filters Bar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-bg-card border border-border-subtle p-4 rounded-3xl shadow-lg">
+            <div className="relative flex-1">
+              <Search size={18} className="absolute start-4 top-1/2 -translate-y-1/2 text-text-muted" />
+              <input
+                type="text"
+                value={tableSearch}
+                onChange={e => setTableSearch(e.target.value)}
+                placeholder="Search titles, authors..."
+                className="w-full ps-11 pe-4 py-2.5 bg-bg-secondary border border-border-subtle text-text-primary rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-indigo/50"
+              />
+              {tableSearch && (
+                <button onClick={() => setTableSearch('')} className="absolute end-3 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-primary">
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0">
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value as any)}
+                className="px-4 py-2.5 bg-bg-secondary border border-border-subtle text-text-primary rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-indigo/50 cursor-pointer"
+              >
+                <option value="all">All Statuses</option>
+                <option value="published">{t('admin.status.published')}</option>
+                <option value="draft">{t('admin.status.draft')}</option>
+                <option value="scheduled">{t('admin.status.scheduled')}</option>
+                <option value="archived">{t('admin.status.archived')}</option>
+              </select>
+
+              <span className="text-xs text-text-muted px-2 font-mono">
+                {filteredTablePapers.length} / {papers.length}
+              </span>
+            </div>
+          </div>
+
+          {/* Bulk Actions Bar */}
+          {selectedPaperIds.size > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-accent-indigo/10 border border-accent-indigo/30 p-4 rounded-2xl">
+              <span className="text-sm font-medium text-accent-indigo">
+                {selectedPaperIds.size} paper(s) selected
+              </span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => handleBulkStatusChange('published')} className="px-3 py-1.5 text-xs font-medium bg-success/20 text-success border border-success/30 rounded-full hover:bg-success/30 transition-colors">
+                  Publish All
+                </button>
+                <button onClick={() => handleBulkStatusChange('draft')} className="px-3 py-1.5 text-xs font-medium bg-bg-card text-text-secondary border border-border-subtle rounded-full hover:bg-bg-hover transition-colors">
+                  Set Draft
+                </button>
+                <button onClick={() => handleBulkStatusChange('archived')} className="px-3 py-1.5 text-xs font-medium bg-bg-card text-text-muted border border-border-subtle rounded-full hover:bg-bg-hover transition-colors">
+                  Archive All
+                </button>
+                <button onClick={handleBulkDelete} className="px-3 py-1.5 text-xs font-medium bg-danger/20 text-danger border border-danger/30 rounded-full hover:bg-danger/30 transition-colors">
+                  Delete Selected
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Table */}
+          <div className="bg-bg-card border border-border-subtle rounded-3xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-start text-sm whitespace-nowrap">
+                <thead className="bg-bg-secondary text-text-secondary">
                   <tr>
-                    <td colSpan={5} className="px-6 py-16 text-center">
-                      <LayoutDashboard size={48} className="mx-auto text-text-muted mb-4" />
-                      <h3 className="text-xl font-medium text-text-primary mb-2">{t('admin.table.empty.title')}</h3>
-                      <p className="text-text-muted mb-6">{t('admin.table.empty.desc')}</p>
-                      <button onClick={() => handleOpenEditor()} className="inline-flex items-center px-6 py-3 font-medium text-bg-primary bg-text-primary hover:bg-bg-hover rounded-full transition-colors">
-                        {t('admin.table.empty.cta')}
-                      </button>
-                    </td>
+                    <th className="px-4 py-4 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedPaperIds.size > 0 && selectedPaperIds.size === filteredTablePapers.length}
+                        onChange={toggleSelectAll}
+                        className="rounded border-border-subtle text-accent-indigo focus:ring-accent-indigo"
+                      />
+                    </th>
+                    <th className="px-6 py-4 font-medium text-start">{t('admin.table.title')}</th>
+                    <th className="px-6 py-4 font-medium text-start">{t('admin.table.status')}</th>
+                    <th className="px-6 py-4 font-medium text-start">{t('admin.table.type')}</th>
+                    <th className="px-6 py-4 font-medium text-start">Tags</th>
+                    <th className="px-6 py-4 font-medium text-start">Stats</th>
+                    <th className="px-6 py-4 font-medium text-start">{t('admin.table.updated')}</th>
+                    <th className="px-6 py-4 font-medium text-end">{t('admin.table.actions')}</th>
                   </tr>
-                ) : (
-                  papers.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()).map(paper => (
-                    <tr key={paper.id} className="hover:bg-bg-secondary/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-text-secondary truncate max-w-xs md:max-w-md">{paper.title}</div>
-                        <div className="text-text-muted text-xs mt-1">
-                          {paper.author} {paper.focusArea ? ` • ${paper.focusArea}` : ''} 
-                          {paper.contentType === 'native_markdown' ? ` • ${paper.wordCount} ${t('admin.words')}` : ''}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <select
-                          value={paper.status}
-                          onChange={e => setPaperStatus(paper.id, e.target.value as PaperStatus)}
-                          style={{ backgroundColor: STATUS_STYLE[paper.status].bg, color: STATUS_STYLE[paper.status].fg, borderColor: STATUS_STYLE[paper.status].border }}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border focus:outline-none cursor-pointer"
-                        >
-                          <option value="draft">{t('admin.status.draft')}</option>
-                          <option value="scheduled">{t('admin.status.scheduled')}</option>
-                          <option value="published">{t('admin.status.published')}</option>
-                          <option value="archived">{t('admin.status.archived')}</option>
-                        </select>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-text-muted text-xs uppercase bg-bg-secondary px-2 py-1 rounded-md border border-border-subtle">
-                          {paper.contentType === 'google_doc' ? t('admin.type.gdoc') : t('admin.type.md')}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-text-muted">
-                          {new Date(paper.updatedAt).toLocaleDateString()}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-end">
-                        <div className="flex items-center justify-end gap-2">
-                          <button 
-                            onClick={() => handleOpenEditor(paper)}
-                            className="p-2 text-text-secondary hover:text-accent-indigo hover:bg-accent-indigo/10 rounded-full transition-colors"
-                          >
-                            <Edit3 size={16} />
-                          </button>
-                          <button 
-                            onClick={() => window.confirm(`Are you sure you want to delete "${paper.title}"?`) && onDelete(paper.id)}
-                            className="p-2 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-full transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {filteredTablePapers.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-6 py-16 text-center">
+                        <LayoutDashboard size={48} className="mx-auto text-text-muted mb-4" />
+                        <h3 className="text-xl font-medium text-text-primary mb-2">No matching papers</h3>
+                        <p className="text-text-muted mb-6">Try clearing your search query or status filter.</p>
+                        <button onClick={() => { setTableSearch(''); setStatusFilter('all'); }} className="inline-flex items-center px-6 py-3 font-medium text-bg-primary bg-text-primary hover:bg-bg-hover rounded-full transition-colors">
+                          Clear Filters
+                        </button>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    filteredTablePapers.map(paper => {
+                      const paperTagObjs = paper.tags.map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
+                      return (
+                        <tr key={paper.id} className={`hover:bg-bg-secondary/50 transition-colors ${selectedPaperIds.has(paper.id) ? 'bg-accent-indigo/5' : ''}`}>
+                          <td className="px-4 py-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedPaperIds.has(paper.id)}
+                              onChange={() => toggleSelectPaper(paper.id)}
+                              className="rounded border-border-subtle text-accent-indigo focus:ring-accent-indigo"
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-medium text-text-secondary truncate max-w-xs md:max-w-md">{paper.title}</div>
+                            <div className="text-text-muted text-xs mt-1">
+                              {paper.author} {paper.focusArea ? ` • ${paper.focusArea}` : ''} 
+                              {paper.contentType === 'native_markdown' ? ` • ${paper.wordCount} ${t('admin.words')}` : ''}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <select
+                              value={paper.status}
+                              onChange={e => setPaperStatus(paper.id, e.target.value as PaperStatus)}
+                              style={{ backgroundColor: STATUS_STYLE[paper.status].bg, color: STATUS_STYLE[paper.status].fg, borderColor: STATUS_STYLE[paper.status].border }}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border focus:outline-none cursor-pointer"
+                            >
+                              <option value="draft">{t('admin.status.draft')}</option>
+                              <option value="scheduled">{t('admin.status.scheduled')}</option>
+                              <option value="published">{t('admin.status.published')}</option>
+                              <option value="archived">{t('admin.status.archived')}</option>
+                            </select>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-text-muted text-xs uppercase bg-bg-secondary px-2 py-1 rounded-md border border-border-subtle">
+                              {paper.contentType === 'google_doc' ? t('admin.type.gdoc') : t('admin.type.md')}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-1 max-w-[160px]">
+                              {paperTagObjs.slice(0, 2).map(t => (
+                                <span key={t.id} style={{ color: t.color, backgroundColor: `${t.color}15`, borderColor: `${t.color}30` }} className="px-2 py-0.5 text-[10px] font-medium border rounded-full">
+                                  {t.name}
+                                </span>
+                              ))}
+                              {paperTagObjs.length > 2 && (
+                                <span className="text-[10px] text-text-muted self-center">+{paperTagObjs.length - 2}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-xs text-text-muted">
+                            <div className="flex items-center gap-2">
+                              <span title="Views" className="flex items-center gap-1"><Eye size={12} /> {paper.views}</span>
+                              <span title="Saves" className="flex items-center gap-1"><Bookmark size={12} /> {paper.savedCount || 0}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-text-muted text-xs">
+                              {new Date(paper.updatedAt).toLocaleDateString()}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-end">
+                            <div className="flex items-center justify-end gap-1">
+                              <button 
+                                onClick={() => handleDuplicate(paper)}
+                                title="Duplicate Paper"
+                                className="p-2 text-text-secondary hover:text-accent-cyan hover:bg-accent-cyan/10 rounded-full transition-colors"
+                              >
+                                <Copy size={15} />
+                              </button>
+                              <button 
+                                onClick={() => handleOpenEditor(paper)}
+                                title="Edit Paper"
+                                className="p-2 text-text-secondary hover:text-accent-indigo hover:bg-accent-indigo/10 rounded-full transition-colors"
+                              >
+                                <Edit3 size={15} />
+                              </button>
+                              <button 
+                                onClick={() => window.confirm(`Are you sure you want to delete "${paper.title}"?`) && onDelete(paper.id)}
+                                title="Delete Paper"
+                                className="p-2 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-full transition-colors"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

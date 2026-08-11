@@ -11,6 +11,18 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            firebase: ['firebase/app', 'firebase/auth', 'firebase/database'],
+            markdown: ['react-markdown', 'remark-gfm', 'rehype-raw'],
+            react: ['react', 'react-dom', 'react-router-dom'],
+            lucide: ['lucide-react'],
+          },
+        },
+      },
+    },
     server: {
       // HMR is disabled via the DISABLE_HMR env var (e.g. in AI Studio).
       // Do not modify — file watching is disabled to prevent flickering during agent edits.

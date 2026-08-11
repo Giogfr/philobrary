@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.git/
+assets/
+public/
+bun.lock
+package-lock.json
+dev-server.log
+database.rules.json
+metadata.json
+firebase.json
+.firebaserc

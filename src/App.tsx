@@ -5,9 +5,9 @@ import { auth } from './firebase';
 import { useStore, isAdminEmail } from './store';
 import { Paper, Tag } from './types';
 import { Flag } from './components/Flag';
-import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon } from 'lucide-react';
+import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon, LayoutGrid, List, ArrowUp, X, Sparkles } from 'lucide-react';
 import { t, languageShortNames } from './i18n';
-import { setSeo, resetSeo, stripMarkdown, BASE_URL } from './seo';
+import { setSeo, resetSeo, stripMarkdown, BASE_URL, setHreflangAlternates, createBreadcrumbJsonLd, addJsonLd } from './seo';
 import { htmlToText } from './utils';
 
 // Route-level code splitting — admin + auth screens load on demand.
@@ -24,14 +24,18 @@ function RouteFallback() {
   );
 }
 
-type SortOption = 'newest' | 'oldest' | 'views' | 'alpha';
+type SortOption = 'newest' | 'oldest' | 'views' | 'saves' | 'updated' | 'alpha';
 
 const SORT_LABEL_KEY: Record<SortOption, string> = {
   newest: 'sort.newest',
   oldest: 'sort.oldest',
   views: 'sort.mostViewed',
+  saves: 'sort.mostSaved',
+  updated: 'sort.updated',
   alpha: 'sort.alphabetical',
 };
+
+const VIEW_MODE_KEY = 'philobrary_view_mode';
 
 function ToastContainer() {
   const { toasts } = useStore();
@@ -52,19 +56,32 @@ function ToastContainer() {
 
 function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
   const { 
-    papers, tags, user, bookmarkedIds, 
-    toggleBookmark,
+    papers, tags, user, bookmarkedIds, dataReady,
+    toggleBookmark, readingHistory,
     translatedTitle, translatedTagName, translatedFocusArea,
     ensureContentTranslation, language
   } = useStore();
   
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedTagId, setSelectedTagId] = useState<string | 'All'>('All');
+  const [selectedAuthor, setSelectedAuthor] = useState<string | 'All'>('All');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    const saved = localStorage.getItem(VIEW_MODE_KEY);
+    return saved === 'list' ? 'list' : 'list';
+  });
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
   const sortRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -74,14 +91,32 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setShowSortDropdown(false);
+      if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
     };
+    const handleScroll = () => setShowBackToTop(window.scrollY > 600);
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('scroll', handleScroll);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('scroll', handleScroll);
     };
   }, []);
+
+  // Scroll the active tag chip into view when it is selected.
+  useEffect(() => {
+    if (selectedTagId !== 'All') {
+      document.getElementById(`tag-chip-${selectedTagId}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+  }, [selectedTagId]);
+
+  useEffect(() => {
+    localStorage.setItem(VIEW_MODE_KEY, viewMode);
+  }, [viewMode]);
 
   const now = Date.now();
   const processedPapers = papers.map(p => {
@@ -95,23 +130,41 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
     ? processedPapers.filter(p => bookmarkedIds.includes(p.id) && p.status === 'published')
     : processedPapers.filter(p => p.status === 'published');
   
+  const authors = [...new Set(libraryPapers.map(p => p.author))].sort((a, b) => a.localeCompare(b));
+
   const filteredPapers = libraryPapers.filter(paper => {
-    const matchesSearch = paper.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          (paper.content && paper.content.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                          paper.author.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = debouncedQuery.trim().toLowerCase();
+    const matchesSearch = !q || paper.title.toLowerCase().includes(q) || 
+                          (paper.content && paper.content.toLowerCase().includes(q)) ||
+                          paper.author.toLowerCase().includes(q) ||
+                          (paper.keywords || '').toLowerCase().includes(q);
     const matchesTag = selectedTagId === 'All' || paper.tags.includes(selectedTagId);
-    return matchesSearch && matchesTag;
+    const matchesAuthor = selectedAuthor === 'All' || paper.author === selectedAuthor;
+    return matchesSearch && matchesTag && matchesAuthor;
   }).sort((a, b) => {
     const aTime = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
     const bTime = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+    const aUpd = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const bUpd = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
     switch (sortBy) {
       case 'oldest': return aTime - bTime;
       case 'views': return b.views - a.views;
+      case 'saves': return (b.savedCount || 0) - (a.savedCount || 0);
+      case 'updated': return bUpd - aUpd;
       case 'alpha': return a.title.localeCompare(b.title);
       case 'newest':
       default: return bTime - aTime;
     }
   });
+
+  const hasActiveFilters = debouncedQuery.trim() !== '' || selectedTagId !== 'All' || selectedAuthor !== 'All';
+
+  const continueReading = currentView === 'library'
+    ? readingHistory()
+        .map(h => processedPapers.find(p => p.id === h.id))
+        .filter((p): p is Paper => !!p && p.status === 'published')
+        .slice(0, 4)
+    : [];
 
   const handleReadPaper = (paper: Paper) => {
     ensureContentTranslation(paper, language);
@@ -127,12 +180,13 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
         : 'A curated digital library of philosophy essays, thinkers, and original research — translated into 15 languages.',
       url: currentView === 'saved' ? BASE_URL + '/saved' : BASE_URL + '/',
     });
+    setHreflangAlternates(currentView === 'saved' ? '/saved' : '/');
   }, [currentView]);
 
   return (
     <>
-      <div className="max-w-7xl mx-auto px-6 py-12 md:py-20">
-        <div className="max-w-3xl mb-16">
+      <div id="main-content" className="max-w-7xl mx-auto px-4 md:px-6 py-10 md:py-20">
+        <div className="max-w-3xl mb-12 md:mb-16">
           <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold text-text-primary tracking-tight mb-6 leading-tight">
             {currentView === 'saved' ? t('hero.title.saved') : <>{t('hero.title.library1')}<span className="text-transparent bg-clip-text bg-gradient-to-r from-accent-indigo to-accent-cyan">{t('hero.title.library2')}</span></>}
           </h1>
@@ -141,69 +195,147 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
           </p>
         </div>
 
+        {continueReading.length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-4 flex items-center gap-2">
+              <Bookmark size={14} className="text-accent-indigo" /> {t('library.continueReading')}
+            </h2>
+            <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+              {continueReading.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => handleReadPaper(p)}
+                  className="group flex items-center gap-3 shrink-0 bg-bg-card border border-border-subtle hover:border-accent-indigo/50 rounded-2xl px-4 py-3 transition-all hover:shadow-lg max-w-xs"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-accent-indigo to-accent-cyan flex items-center justify-center text-white font-bold shrink-0">
+                    {p.author.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 text-start">
+                    <p className="text-sm font-medium text-text-primary truncate group-hover:text-accent-cyan transition-colors">{translatedTitle(p)}</p>
+                    <p className="text-xs text-text-muted">{p.readingTimeMinutes} {t('paper.minRead')}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col lg:flex-row gap-4 mb-8">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 start-0 flex items-center ps-4 text-text-muted"><Search size={20} /></div>
             <input 
+              ref={searchRef}
               type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('search.placeholder')}
-              className="w-full py-4 ps-12 pe-4 bg-bg-card border border-border-subtle text-text-primary rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent-indigo/50 transition-all placeholder:text-text-muted"
+              aria-label={t('search.placeholder')}
+              className="w-full py-4 ps-12 pe-12 bg-bg-card border border-border-subtle text-text-primary rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent-indigo/50 transition-all placeholder:text-text-muted"
             />
-          </div>
-          
-          <div className="relative min-w-[200px]" ref={sortRef}>
-            <button onClick={() => setShowSortDropdown(!showSortDropdown)} className="w-full h-full flex items-center justify-between px-5 py-4 bg-bg-card border border-border-subtle text-text-primary rounded-2xl hover:bg-bg-hover transition-colors">
-              <div className="flex items-center"><SlidersHorizontal size={18} className="me-3 text-text-muted" /> {t('sort.label')} {t(SORT_LABEL_KEY[sortBy])}</div>
-              <ChevronDown size={16} className="text-text-muted" />
-            </button>
-            {showSortDropdown && (
-              <div className="absolute top-full mt-2 w-full bg-bg-card border border-border-subtle rounded-2xl overflow-hidden z-20 shadow-2xl">
-                {(['newest', 'oldest', 'views', 'alpha'] as SortOption[]).map(opt => (
-                  <button key={opt} onClick={() => { setSortBy(opt); setShowSortDropdown(false); }} className={`w-full text-start px-5 py-3 text-sm hover:bg-bg-hover transition-colors ${sortBy === opt ? 'text-accent-cyan bg-bg-secondary' : 'text-text-secondary'}`}>
-                    {t(SORT_LABEL_KEY[opt])}
-                  </button>
-                ))}
-              </div>
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(''); setDebouncedQuery(''); searchRef.current?.focus(); }}
+                aria-label={t('search.clear')}
+                className="absolute inset-y-0 end-0 flex items-center pe-4 text-text-muted hover:text-text-primary"
+              >
+                <X size={18} />
+              </button>
             )}
           </div>
+
+          <div className="flex gap-4">
+            <div className="relative flex-1 lg:min-w-[200px]">
+              <button onClick={() => setShowSortDropdown(!showSortDropdown)} aria-haspopup="listbox" aria-expanded={showSortDropdown} className="w-full h-full flex items-center justify-between px-5 py-4 bg-bg-card border border-border-subtle text-text-primary rounded-2xl hover:bg-bg-hover transition-colors">
+                <div className="flex items-center"><SlidersHorizontal size={18} className="me-3 text-text-muted" /> <span className="hidden sm:inline">{t('sort.label')}</span> {t(SORT_LABEL_KEY[sortBy])}</div>
+                <ChevronDown size={16} className="text-text-muted" />
+              </button>
+              {showSortDropdown && (
+                <div className="absolute top-full mt-2 w-full bg-bg-card border border-border-subtle rounded-2xl overflow-hidden z-20 shadow-2xl" role="listbox">
+                  {(['newest', 'oldest', 'views', 'saves', 'updated', 'alpha'] as SortOption[]).map(opt => (
+                    <button key={opt} onClick={() => { setSortBy(opt); setShowSortDropdown(false); }} className={`w-full text-start px-5 py-3 text-sm hover:bg-bg-hover transition-colors ${sortBy === opt ? 'text-accent-cyan bg-bg-secondary' : 'text-text-secondary'}`}>
+                      {t(SORT_LABEL_KEY[opt])}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center bg-bg-card border border-border-subtle rounded-2xl p-1 shrink-0" role="group" aria-label={t('library.view')}>
+              <button onClick={() => setViewMode('grid')} aria-pressed={viewMode === 'grid'} className={`p-2.5 rounded-xl transition-colors ${viewMode === 'grid' ? 'bg-bg-hover text-text-primary' : 'text-text-muted hover:text-text-primary'}`} title={t('library.viewGrid')}>
+                <LayoutGrid size={18} />
+              </button>
+              <button onClick={() => setViewMode('list')} aria-pressed={viewMode === 'list'} className={`p-2.5 rounded-xl transition-colors ${viewMode === 'list' ? 'bg-bg-hover text-text-primary' : 'text-text-muted hover:text-text-primary'}`} title={t('library.viewList')}>
+                <List size={18} />
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 mb-12">
-          <button
-            onClick={() => setSelectedTagId('All')}
-            className={`px-5 py-2 text-sm font-medium rounded-full transition-all border ${selectedTagId === 'All' ? 'bg-text-primary text-bg-primary border-text-primary' : 'bg-bg-card text-text-secondary border-border-subtle hover:bg-bg-hover hover:text-text-primary'}`}
-          >
-            {t('filter.all')}
-          </button>
-          {tags.slice(0, showAllTags || selectedTagId !== 'All' ? tags.length : 8).map(tag => (
+        <div className="flex flex-col md:flex-row md:items-center gap-3 mb-10">
+          <div className="flex flex-wrap gap-2">
             <button
-              key={tag.id}
-              onClick={() => setSelectedTagId(tag.id)}
-              style={selectedTagId === tag.id ? { backgroundColor: `${tag.color}20`, borderColor: tag.color, color: tag.color } : {}}
-              className={`px-5 py-2 text-sm font-medium rounded-full transition-all border ${selectedTagId === tag.id ? '' : 'bg-bg-card text-text-secondary border-border-subtle hover:bg-bg-hover hover:text-text-primary'}`}
+              onClick={() => setSelectedTagId('All')}
+              aria-pressed={selectedTagId === 'All'}
+              className={`px-5 py-2 text-sm font-medium rounded-full transition-all border ${selectedTagId === 'All' ? 'bg-text-primary text-bg-primary border-text-primary' : 'bg-bg-card text-text-secondary border-border-subtle hover:bg-bg-hover hover:text-text-primary'}`}
             >
-              {translatedTagName(tag)}
+              {t('filter.all')}
             </button>
-          ))}
-          {!showAllTags && tags.length > 8 && (
-            <button
-              onClick={() => setShowAllTags(true)}
-              className="px-5 py-2 text-sm font-medium rounded-full transition-all border border-border-subtle bg-bg-card text-accent-cyan hover:bg-bg-hover"
-            >
-              +{tags.length - 8} {t('filter.more')}
-            </button>
-          )}
-          {showAllTags && tags.length > 8 && (
-            <button
-              onClick={() => setShowAllTags(false)}
-              className="px-5 py-2 text-sm font-medium rounded-full transition-all border border-border-subtle bg-bg-card text-accent-cyan hover:bg-bg-hover"
-            >
-              {t('filter.less')}
-            </button>
-          )}
+            {tags.slice(0, showAllTags || selectedTagId !== 'All' ? tags.length : 8).map(tag => (
+              <button
+                key={tag.id}
+                id={`tag-chip-${tag.id}`}
+                onClick={() => setSelectedTagId(tag.id)}
+                aria-pressed={selectedTagId === tag.id}
+                style={selectedTagId === tag.id ? { backgroundColor: `${tag.color}20`, borderColor: tag.color, color: tag.color } : {}}
+                className={`px-5 py-2 text-sm font-medium rounded-full transition-all border scroll-mx-6 ${selectedTagId === tag.id ? '' : 'bg-bg-card text-text-secondary border-border-subtle hover:bg-bg-hover hover:text-text-primary'}`}
+              >
+                {translatedTagName(tag)}
+              </button>
+            ))}
+            {!showAllTags && tags.length > 8 && (
+              <button
+                onClick={() => setShowAllTags(true)}
+                className="px-5 py-2 text-sm font-medium rounded-full transition-all border border-border-subtle bg-bg-card text-accent-cyan hover:bg-bg-hover"
+              >
+                +{tags.length - 8} {t('filter.more')}
+              </button>
+            )}
+            {showAllTags && tags.length > 8 && (
+              <button
+                onClick={() => setShowAllTags(false)}
+                className="px-5 py-2 text-sm font-medium rounded-full transition-all border border-border-subtle bg-bg-card text-accent-cyan hover:bg-bg-hover"
+              >
+                {t('filter.less')}
+              </button>
+            )}
+          </div>
+
+          <div className="md:ms-auto flex items-center gap-3">
+            {authors.length > 1 && (
+              <select
+                value={selectedAuthor}
+                onChange={e => setSelectedAuthor(e.target.value)}
+                aria-label={t('library.author')}
+                className="px-4 py-2 bg-bg-card border border-border-subtle text-text-secondary rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-accent-indigo/50"
+              >
+                <option value="All">{t('library.allAuthors')}</option>
+                {authors.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            )}
+            <span className="text-sm text-text-muted whitespace-nowrap">
+              {filteredPapers.length} {filteredPapers.length === 1 ? t('library.paper') : t('library.papers')}
+            </span>
+          </div>
         </div>
 
-        {filteredPapers.length === 0 ? (
+        {hasActiveFilters && filteredPapers.length === 0 ? (
+          <div className="py-24 text-center border border-dashed border-border-subtle rounded-3xl bg-bg-secondary/50">
+            <Search size={48} className="mx-auto text-text-muted mb-6" />
+            <h3 className="text-2xl font-bold text-text-primary mb-3">{t('empty.noMatches.title')}</h3>
+            <p className="text-text-muted max-w-md mx-auto mb-8">{t('empty.noMatches.desc')}</p>
+            <button onClick={() => { setSearchQuery(''); setDebouncedQuery(''); setSelectedTagId('All'); setSelectedAuthor('All'); }} className="px-6 py-3 bg-text-primary text-bg-primary rounded-full font-medium hover:bg-bg-hover transition-colors">
+              {t('empty.clearFilters')}
+            </button>
+          </div>
+        ) : filteredPapers.length === 0 && dataReady ? (
           <div className="py-24 text-center border border-dashed border-border-subtle rounded-3xl bg-bg-secondary/50">
             <FileText size={48} className="mx-auto text-text-muted mb-6" />
             <h3 className="text-2xl font-bold text-text-primary mb-3">{currentView === 'saved' ? t('empty.saved.title') : t('empty.library.title')}</h3>
@@ -214,29 +346,45 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
               </button>
             )}
           </div>
-        ) : (
+        ) : !dataReady && filteredPapers.length === 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="bg-bg-card border border-border-subtle rounded-3xl p-6 md:p-8 animate-pulse">
+                <div className="h-5 w-24 bg-bg-hover rounded-full mb-4" />
+                <div className="h-6 bg-bg-hover rounded-xl mb-3 w-3/4" />
+                <div className="h-4 bg-bg-hover rounded-lg mb-2 w-full" />
+                <div className="h-4 bg-bg-hover rounded-lg mb-2 w-5/6" />
+                <div className="h-4 bg-bg-hover rounded-lg mb-6 w-2/3" />
+                <div className="h-4 bg-bg-hover rounded-full w-32 mt-auto" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'grid grid-cols-1 gap-4'}>
             {filteredPapers.map(paper => {
               const paperTags = paper.tags.map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
               const isSaved = bookmarkedIds.includes(paper.id);
               const excerpt = paper.metaDescription
                 ? paper.metaDescription
                 : htmlToText(paper.content).slice(0, 220);
+              const cardClass = viewMode === 'grid'
+                ? 'flex flex-col bg-bg-card border border-border-subtle hover:border-accent-indigo/50 rounded-3xl p-6 md:p-8 cursor-pointer transition-all hover:shadow-2xl hover:shadow-accent-indigo/10 hover:-translate-y-1 relative'
+                : 'flex flex-col sm:flex-row sm:items-center gap-4 bg-bg-card border border-border-subtle hover:border-accent-indigo/50 rounded-2xl p-5 cursor-pointer transition-all hover:shadow-lg relative';
               return (
                 <div 
                   key={paper.id} 
                   onClick={() => handleReadPaper(paper)}
-                  className="group flex flex-col bg-bg-card border border-border-subtle hover:border-accent-indigo/50 rounded-3xl p-6 md:p-8 cursor-pointer transition-all hover:shadow-2xl hover:shadow-accent-indigo/10 hover:-translate-y-1 relative"
+                  className={cardClass}
                 >
                   <button 
                     onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
-                    aria-label={isSaved ? t('reader.bookmark') : t('reader.bookmark')}
-                    className={`absolute top-6 end-6 p-2.5 rounded-full transition-colors z-10 ${isSaved ? 'text-accent-indigo bg-accent-indigo/10' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'}`}
+                    aria-label={t('reader.bookmark')}
+                    className={`absolute top-5 end-5 p-2.5 rounded-full transition-colors z-10 ${isSaved ? 'text-accent-indigo bg-accent-indigo/10' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'}`}
                   >
                     <Bookmark size={18} fill={isSaved ? "currentColor" : "none"} />
                   </button>
 
-                  <div className="flex flex-wrap gap-2 mb-4 pe-10">
+                  <div className={`flex flex-wrap gap-2 mb-4 pe-10 ${viewMode === 'list' ? 'sm:pe-0 sm:mb-0 sm:min-w-[200px] sm:flex-col sm:items-start sm:gap-1.5' : ''}`}>
                     {paperTags.slice(0, 3).map(t => (
                       <span key={t.id} style={{ color: t.color, backgroundColor: `${t.color}15`, borderColor: `${t.color}30` }} className="px-3 py-1 text-xs font-medium border rounded-full">
                         {translatedTagName(t)}
@@ -244,28 +392,23 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                     ))}
                   </div>
                   
-                  <h3 className="text-xl md:text-2xl font-bold text-text-primary mb-3 leading-snug group-hover:text-accent-cyan transition-colors line-clamp-2">
-                    {translatedTitle(paper)}
-                  </h3>
-
-                  <p className="text-sm text-text-secondary leading-relaxed line-clamp-3 mb-5">
-                    {excerpt}
-                  </p>
-
-                  {translatedFocusArea(paper) && (
-                    <p className="text-xs font-medium text-accent-cyan mb-4">
-                      {translatedFocusArea(paper)}
+                  <div className={viewMode === 'list' ? 'flex-1 min-w-0' : ''}>
+                    <h3 className={`font-bold text-text-primary mb-2 leading-snug group-hover:text-accent-cyan transition-colors line-clamp-2 ${viewMode === 'grid' ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl'}`}>
+                      {translatedTitle(paper)}
+                    </h3>
+                    <p className={`text-sm text-text-secondary leading-relaxed line-clamp-2 ${viewMode === 'grid' ? 'line-clamp-3 mb-5' : 'hidden sm:block sm:mb-2'}`}>
+                      {excerpt}
                     </p>
-                  )}
-                  
-                  <div className="mt-auto pt-5 flex items-center justify-between border-t border-border-subtle/60">
-                    <div className="flex items-center text-sm text-text-secondary">
-                      <span className="truncate max-w-[140px] font-medium text-text-secondary">{paper.author}</span>
-                    </div>
-                    <div className="flex items-center text-xs text-text-muted font-medium gap-3">
-                      <span className="flex items-center gap-1"><Eye size={12} /> {paper.views.toLocaleString()}</span>
-                      <span className="flex items-center gap-1"><Bookmark size={12} /> {(paper.savedCount || 0).toLocaleString()}</span>
-                      <span>{paper.readingTimeMinutes} {t('paper.minRead')}</span>
+                    {translatedFocusArea(paper) && (
+                      <p className="text-xs font-medium text-accent-cyan mb-4">{translatedFocusArea(paper)}</p>
+                    )}
+                    <div className={`flex items-center justify-between border-t border-border-subtle/60 pt-4 ${viewMode === 'list' ? 'sm:border-t-0 sm:pt-0' : ''}`}>
+                      <span className="text-sm font-medium text-text-secondary truncate max-w-[140px]">{paper.author}</span>
+                      <div className="flex items-center text-xs text-text-muted font-medium gap-3">
+                        <span className="flex items-center gap-1"><Eye size={12} /> {paper.views.toLocaleString()}</span>
+                        <span className="flex items-center gap-1"><Bookmark size={12} /> {(paper.savedCount || 0).toLocaleString()}</span>
+                        <span>{paper.readingTimeMinutes} {t('paper.minRead')}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -274,6 +417,16 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
           </div>
         )}
       </div>
+
+      {showBackToTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 end-6 z-40 p-3 bg-bg-card border border-border-subtle text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded-full shadow-xl transition-all"
+          aria-label={t('reader.top')}
+        >
+          <ArrowUp size={20} />
+        </button>
+      )}
     </>
   );
 }
@@ -372,6 +525,7 @@ function PublicPaperView() {
   useEffect(() => {
     if (!paper) {
       resetSeo();
+      setHreflangAlternates('/');
       return;
     }
     incrementViews(paper.id);
@@ -395,6 +549,11 @@ function PublicPaperView() {
         mainEntityOfPage: `${BASE_URL}/p/${paper.slug}`,
       },
     });
+    setHreflangAlternates(`/p/${paper.slug}`);
+    addJsonLd('breadcrumb', createBreadcrumbJsonLd([
+      { name: 'Library', url: BASE_URL + '/' },
+      { name: paper.title, url: `${BASE_URL}/p/${paper.slug}` },
+    ]));
   }, [paper?.id, language]);
 
   if (!paper) {
@@ -455,6 +614,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-bg-primary selection:bg-accent-indigo/30 selection:text-text-primary pb-20">
+      <a href="#main-content" className="skip-link">{t('skipLink.main')}</a>
       <nav className="sticky top-0 z-30 bg-bg-primary/80 backdrop-blur-xl border-b border-border-subtle">
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-2">
           <Link to="/" className="flex items-center gap-3 cursor-pointer shrink-0">

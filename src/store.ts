@@ -89,8 +89,9 @@ interface StoreState {
   toasts: ToastMessage[];
   theme: 'light' | 'dark';
   language: SupportedLanguage;
-  translations: Record<SupportedLanguage, TranslationBucket>;
+  translations: Partial<Record<SupportedLanguage, TranslationBucket>>;
   pending: Set<string>;
+  dataReady: boolean;
 }
 
 const readStorage = (key: string) => {
@@ -109,6 +110,34 @@ const writeStorage = (key: string, value: string) => {
   }
 };
 
+const TRANSLATIONS_KEY = 'philobrary_translations';
+const HISTORY_KEY = 'philobrary_history';
+
+interface ReadingHistoryEntry {
+  id: string;
+  slug: string;
+  title: string;
+  visitedAt: number;
+}
+
+function readTranslationsCache(): Partial<Record<SupportedLanguage, TranslationBucket>> {
+  try {
+    const cached = JSON.parse(localStorage.getItem(TRANSLATIONS_KEY) || '{}');
+    return cached && typeof cached === 'object' ? cached : {};
+  } catch {
+    return {};
+  }
+}
+
+function readHistory(): ReadingHistoryEntry[] {
+  try {
+    const cached = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    return Array.isArray(cached) ? cached : [];
+  } catch {
+    return [];
+  }
+}
+
 let state: StoreState = {
   papers: [],
   tags: [],
@@ -117,8 +146,9 @@ let state: StoreState = {
   toasts: [],
   theme: (readStorage('theme') as 'light' | 'dark') || 'light',
   language: (readStorage('language') as SupportedLanguage) || 'en',
-  translations: {} as Record<SupportedLanguage, TranslationBucket>,
+  translations: readTranslationsCache(),
   pending: new Set(),
+  dataReady: false,
 };
 
 const listeners = new Set<() => void>();
@@ -214,7 +244,7 @@ onValue(ref(db, 'papers'), (snapshot) => {
     }
     return { ...p, ...patch };
   });
-  setState({ papers });
+  setState({ papers, dataReady: true });
 
   // Auto-publish scheduled papers whose time has come.
   const now = Date.now();
@@ -227,7 +257,7 @@ onValue(ref(db, 'papers'), (snapshot) => {
 
 onValue(ref(db, 'tags'), (snapshot) => {
   const data = snapshot.val();
-  setState({ tags: data ? Object.values(data) as Tag[] : [] });
+  setState({ tags: data ? Object.values(data) as Tag[] : [], dataReady: true });
 });
 
 // Apply persisted theme + language to the document on boot.
@@ -343,6 +373,18 @@ const incrementViews = async (id: string) => {
     } catch { /* storage may be full/unavailable; still count */ }
 
     await update(ref(db, 'papers/' + id), { views: (paper.views || 0) + 1 });
+
+    // Record reading history for the "continue reading" row (max 12).
+    try {
+      const history = readHistory();
+      const nextHistory = [
+        { id: paper.id, slug: paper.slug, title: paper.title, visitedAt: Date.now() },
+        ...history.filter(h => h.id !== paper.id),
+      ].slice(0, 12);
+      writeStorage(HISTORY_KEY, JSON.stringify(nextHistory));
+    } catch {
+      // ignore history write failures
+    }
   } catch (e) {
     console.error('Failed to increment views:', e);
   }
@@ -449,12 +491,16 @@ function unmarkPending(key: string) {
 }
 
 function patchBucket(lang: SupportedLanguage, update: (bucket: TranslationBucket) => TranslationBucket) {
-  setState({
-    translations: {
-      ...state.translations,
-      [lang]: update(state.translations[lang] || emptyBucket()),
-    },
-  });
+  const next = {
+    ...state.translations,
+    [lang]: update(state.translations[lang] || emptyBucket()),
+  };
+  try {
+    writeStorage(TRANSLATIONS_KEY, JSON.stringify(next));
+  } catch {
+    // ignore cache write failures
+  }
+  setState({ translations: next });
 }
 
 function patchPaperTranslation(lang: SupportedLanguage, paperId: string, patch: PaperTranslation) {
@@ -566,6 +612,9 @@ const ensureVisibleTranslations = (visiblePapers: Paper[], allTags: Tag[]) => {
 /** Returns the localized display name for the current language. */
 const languageLabel = (): string => languageNames[state.language] || languageNames.en;
 
+/** Returns recently viewed papers (id/slug/title) for "continue reading". */
+const readingHistory = (): ReadingHistoryEntry[] => readHistory();
+
 export function useStore() {
   useSyncExternalStore(subscribe, getSnapshot);
   return {
@@ -576,6 +625,8 @@ export function useStore() {
     toasts: state.toasts,
     theme: state.theme,
     language: state.language,
+    dataReady: state.dataReady,
+    readingHistory,
     toggleTheme,
     setLanguage,
     addPaper,

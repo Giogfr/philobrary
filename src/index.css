@@ -85,11 +85,24 @@ html {
   display: none;
 }
 
+/* Sepia reading mode — light-theme amber paper look.
+   Applied by toggling the .reader-sepia class on .reader-root. */
+.reader-sepia {
+  --bg-primary: #F4ECD8;
+  --bg-secondary: #FAF3E3;
+  --bg-card: #E8DCC0;
+  --bg-hover: #DCCDA9;
+  --text-primary: #3B2F1D;
+  --text-secondary: #6B5B3E;
+  --text-muted: #8A7A5C;
+  --border-subtle: #D6C7A8;
+}
+
 @media print {
   nav, aside, .sticky {
     display: none !important;
   }
-  body {
+body {
     background: #fff !important;
     color: #000 !important;
   }
@@ -110,6 +123,49 @@ html {
     border: none !important;
     background: #fff !important;
     color: #000 !important;
+  }
+}
+
+/* Global accessibility helpers */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  z-index: 100;
+  padding: 8px 16px;
+  background: var(--accent-indigo);
+  color: var(--inverse-text);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: top 0.2s ease;
+}
+.skip-link:focus {
+  top: 6px;
+}
+
+/* Focus-visible ring for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Dark mode media query support */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
   }
 }
 

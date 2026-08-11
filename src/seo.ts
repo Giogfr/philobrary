@@ -1,7 +1,10 @@
 import { htmlToText } from './utils';
+import { currentLang } from './i18n';
 
 const SITE_NAME = 'Philobrary';
 const BASE_URL = (import.meta.env.APP_URL || 'https://philobrary.vercel.app').replace(/\/$/, '');
+
+const SUPPORTED_LANGS = ['en', 'ka', 'ru', 'pl', 'he', 'ar', 'es', 'fr', 'de', 'it', 'pt', 'tr', 'ja', 'zh', 'uk'] as const;
 
 function setMeta(attr: 'name' | 'property', key: string, value: string) {
   let el = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${key}"]`);
@@ -27,13 +30,51 @@ function removeJsonLd(id: string) {
   document.getElementById(id)?.remove();
 }
 
-function addJsonLd(id: string, data: object) {
+export function addJsonLd(id: string, data: object) {
   removeJsonLd(id);
   const script = document.createElement('script');
   script.type = 'application/ld+json';
   script.id = id;
   script.textContent = JSON.stringify(data);
   document.head.appendChild(script);
+}
+
+/** Adds hreflang alternate links for all supported languages. */
+export function setHreflangAlternates(path: string) {
+  SUPPORTED_LANGS.forEach(lang => {
+    const href = `${BASE_URL}/${lang}${path}`;
+    let el = document.head.querySelector<HTMLLinkElement>(`link[rel="alternate"][hreflang="${lang}"]`);
+    if (!el) {
+      el = document.createElement('link');
+      el.setAttribute('rel', 'alternate');
+      el.setAttribute('hreflang', lang);
+      document.head.appendChild(el);
+    }
+    el.setAttribute('href', href);
+  });
+  // x-default
+  let xDefault = document.head.querySelector<HTMLLinkElement>(`link[rel="alternate"][hreflang="x-default"]`);
+  if (!xDefault) {
+    xDefault = document.createElement('link');
+    xDefault.setAttribute('rel', 'alternate');
+    xDefault.setAttribute('hreflang', 'x-default');
+    document.head.appendChild(xDefault);
+  }
+  xDefault.setAttribute('href', `${BASE_URL}${path}`);
+}
+
+/** Creates BreadcrumbList JSON-LD for the given path segments. */
+export function createBreadcrumbJsonLd(segments: { name: string; url: string }[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: segments.map((seg, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: seg.name,
+      item: seg.url,
+    })),
+  };
 }
 
 export interface SeoProps {

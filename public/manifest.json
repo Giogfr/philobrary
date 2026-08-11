@@ -1,0 +1,24 @@
+{
+  "name": "Philobrary - Philosophy Essay Library",
+  "short_name": "Philobrary",
+  "description": "A curated digital library of philosophy essays, thinkers, and original research.",
+  "start_url": "https://philobrary.vercel.app/",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#4F46E5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/assets/logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

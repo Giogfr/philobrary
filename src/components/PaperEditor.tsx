@@ -114,6 +114,11 @@ export const PaperEditor: React.FC<PaperEditorProps> = ({ paper, availableTags, 
     }
   };
 
+  // Live word count & reading time for native markdown
+  const wordCount = contentType === 'native_markdown' ? content.trim().split(/\s+/).filter(w => w.length > 0).length : 0;
+  const characterCount = contentType === 'native_markdown' ? content.length : 0;
+  const readingTimeMinutes = Math.max(1, Math.ceil(wordCount / 200));
+
   const handleFormat = (type: string) => {
     const textarea = document.getElementById('markdown-editor') as HTMLTextAreaElement;
     if (!textarea) return;
@@ -207,10 +212,6 @@ export const PaperEditor: React.FC<PaperEditorProps> = ({ paper, availableTags, 
       revisions = [...revisions, { timestamp: now, note: revisionNote, author }];
     }
 
-    const wordCount = contentType === 'native_markdown' ? content.trim().split(/\s+/).filter(w => w.length > 0).length : 0;
-    const characterCount = contentType === 'native_markdown' ? content.length : 0;
-    const readingTimeMinutes = Math.max(1, Math.ceil(wordCount / 200));
-
     const newPaper: Paper = {
       id: paper?.id || crypto.randomUUID(),
       title,
@@ -256,6 +257,10 @@ export const PaperEditor: React.FC<PaperEditorProps> = ({ paper, availableTags, 
         </div>
         
         <div className="flex items-center gap-4">
+          <span className="hidden md:inline-flex items-center text-xs text-text-muted bg-bg-card border border-border-subtle px-3 py-1.5 rounded-full font-mono">
+            {wordCount.toLocaleString()} words • ~{readingTimeMinutes} min read
+          </span>
+
           <select 
             value={status}
             onChange={e => setStatus(e.target.value as PaperStatus)}

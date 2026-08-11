@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
 import { Paper, Tag } from '../types';
 import { X, Check, Clock, Calendar, ChevronLeft, List, ExternalLink, Download, Bookmark, Quote, Activity, FileDown, History, Type, AlignLeft, Sparkles, Sun, Moon, Globe, Eye, ArrowUp, Share2, AtSign, ThumbsUp, Send, MessageCircle, Briefcase, Copy, Shuffle, ZoomIn } from 'lucide-react';
-import { getRelativeTime, headingSlug, stripDarkInlineColors } from '../utils';
+import { getRelativeTime, stripDarkInlineColors, headingSlug } from '../utils';
 import { useStore } from '../store';
 import { t, languageShortNames } from '../i18n';
 import { BASE_URL } from '../seo';
@@ -494,7 +492,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
                   sandbox="allow-scripts allow-same-origin allow-forms"
                 />
               </div>
-            ) : (
+) : (
               <div 
                 className="reader-canvas markdown-body max-w-[70ch] mx-auto px-6 py-10 md:p-12"
                 style={{ 
@@ -502,26 +500,8 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
                   '--reader-line-height': SPACING_VALUES[lineSpacing],
                   '--reader-font-size': FONT_SIZE_VALUES[fontSize],
                 } as React.CSSProperties}
+                dangerouslySetInnerHTML={{ __html: displayContent }}
               >
-                <ReactMarkdown 
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    h1: ({node, children, ...props}) => { const { id } = headingSlug(String(children)); return <h1 id={id} {...props}>{children}</h1> },
-                    h2: ({node, children, ...props}) => { const { id } = headingSlug(String(children)); return <h2 id={id} {...props}>{children}</h2> },
-                    h3: ({node, children, ...props}) => { const { id } = headingSlug(String(children)); return <h3 id={id} {...props}>{children}</h3> },
-                    img: ({node, src, alt, ...props}) => (
-                      <span className="relative inline-block my-4 group cursor-pointer" onClick={() => src && setZoomedImg(src)}>
-                        <img src={src} alt={alt || ''} className="rounded-2xl border border-border-subtle shadow-md max-w-full h-auto transition-transform group-hover:scale-[1.01]" {...props} />
-                        <span className="absolute bottom-3 end-3 p-2 bg-bg-primary/80 backdrop-blur-md rounded-full text-text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                          <ZoomIn size={16} />
-                        </span>
-                      </span>
-                    )
-                  }}
-                >
-                  {displayContent}
-                </ReactMarkdown>
-                
                 <div className="mt-16 pt-8 border-t border-border-subtle flex flex-wrap justify-end gap-3">
                   <button onClick={handleCopyContent} className="flex items-center px-4 py-2 text-sm text-text-secondary bg-bg-card hover:text-text-primary hover:bg-bg-hover rounded-full transition-colors">
                     <Copy size={16} className="me-2 text-accent-indigo" /> {t('reader.copyContent')}

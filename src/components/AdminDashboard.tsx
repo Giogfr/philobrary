@@ -26,7 +26,7 @@ const STATUS_STYLE: Record<PaperStatus, { bg: string; fg: string; border: string
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
   papers, tags, onAdd, onUpdate, onDelete, onAddTag, onDeleteTag, onLogout 
 }) => {
-  const { setPaperStatus } = useStore();
+  const { setPaperStatus, showToast } = useStore();
   const [editingPaper, setEditingPaper] = useState<Paper | undefined>(undefined);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'papers' | 'analytics' | 'tags' | 'featured'>('papers');
@@ -148,9 +148,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleCreateTag = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTagName) return;
-    onAddTag({ id: crypto.randomUUID(), name: newTagName, color: newTagColor });
+    const name = newTagName.trim();
+    if (!name) return;
+    // Check for duplicate (case-insensitive)
+    const isDuplicate = tags.some(t => t.name.toLowerCase() === name.toLowerCase());
+    if (isDuplicate) {
+      showToast('admin.tags.duplicate', 'error');
+      return;
+    }
+    // Auto-generate random color if using default
+    const color = newTagColor === '#818CF8' 
+      ? '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')
+      : newTagColor;
+    onAddTag({ id: crypto.randomUUID(), name, color });
     setNewTagName('');
+    setNewTagColor('#818CF8');
   };
 
   const filteredTablePapers = papers

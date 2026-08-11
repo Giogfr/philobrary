@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { Paper, User, Tag, PaperStatus } from './types';
-import { sanitizeHTML, repairSeoFields } from './utils';
+import { sanitizeHTML, repairSeoFields, repairFlattenedTables } from './utils';
 import { auth, db } from './firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { ref, onValue, set, remove, update, get } from 'firebase/database';
@@ -201,10 +201,12 @@ onValue(ref(db, 'papers'), (snapshot) => {
   const raw = data ? Object.values(data) as Paper[] : [];
   const papers = raw.map(p => {
     const fixed = repairSeoFields(p);
+    const repairedContent = repairFlattenedTables(p.content || '');
     let changed = false;
     const patch: Partial<Paper> = {};
     if (fixed.metaDescription) { patch.metaDescription = fixed.metaDescription; changed = true; }
     if (fixed.keywords) { patch.keywords = fixed.keywords; changed = true; }
+    if (repairedContent !== (p.content || '')) { patch.content = repairedContent; changed = true; }
     if (changed) {
       update(ref(db, 'papers/' + p.id), patch);
     }

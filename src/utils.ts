@@ -66,6 +66,51 @@ export function htmlToText(markdownOrHtml: string): string {
 }
 
 /**
+ * Repairs content produced by an older Google Docs paste parser that flattened
+ * table rows into a run of adjacent `<span>` cells (with `&nbsp;` separators
+ * and white header cells). Detects the flattened-table pattern and rebuilds it
+ * as a GFM markdown table.
+ */
+export function repairFlattenedTables(markdown: string): string {
+  return markdown
+    .split(/\n{2,}/)
+    .map(block => {
+      if (!/<span\b/.test(block)) return block;
+      const matches = Array.from(block.matchAll(/<span\b[^>]*>[\s\S]*?<\/span>/g)).map(m => m[0]);
+      if (matches.length < 6) return block;
+      // A flattened table is a paragraph made entirely of back-to-back spans.
+      if (matches.join('').replace(/\s+/g, '') !== block.replace(/\s+/g, '')) return block;
+
+      const cells = matches.map(span => {
+        const text = span.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').replace(/\u00A0/g, ' ').trim();
+        const isWhite = /color:#fff(fff)?|color:white|color:rgb\(255\s*,\s*255\s*,\s*255\)/i.test(span);
+        return { text, isWhite };
+      });
+
+      const headerCount = cells.filter(c => c.isWhite).length;
+      if (headerCount < 2) return block;
+
+      let i = 0;
+      while (i < cells.length && cells[i].isWhite) i++;
+      if (i < cells.length && cells[i].text === '') i++;
+      const body = cells.slice(i).filter(c => c.text !== '');
+      if (body.length === 0 || body.length % headerCount !== 0) return block;
+
+      const esc = (s: string) => s.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+      const header = cells.slice(0, headerCount).map(c => esc(c.text));
+      const lines = [
+        `| ${header.join(' | ')} |`,
+        `| ${Array(headerCount).fill('---').join(' | ')} |`,
+      ];
+      for (let r = 0; r < body.length; r += headerCount) {
+        lines.push(`| ${body.slice(r, r + headerCount).map(c => esc(c.text)).join(' | ')} |`);
+      }
+      return lines.join('\n');
+    })
+    .join('\n\n');
+}
+
+/**
  * Repairs content that was saved with malformed Google Docs inline HTML
  * (e.g. `<span style="..."` fragments missing `>` and broken color values).
  * Strips span/font tags (keeping inner text) and fixes color declarations.

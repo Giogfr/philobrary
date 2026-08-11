@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Paper, Tag, PaperStatus } from '../types';
-import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles } from 'lucide-react';
+import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity } from 'lucide-react';
 import { PaperEditor } from './PaperEditor';
 import { t } from '../i18n';
 import { useStore, PREMADE_TAGS } from '../store';
@@ -59,6 +59,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const publishedCount = papers.filter(p => p.status === 'published').length;
   const draftCount = papers.filter(p => p.status === 'draft').length;
   const scheduledCount = papers.filter(p => p.status === 'scheduled').length;
+  const totalWords = papers.reduce((sum, p) => sum + (p.wordCount || 0), 0);
+  const totalReadingTime = papers.reduce((sum, p) => sum + (p.readingTimeMinutes || 0), 0);
+  const topViewed = [...papers].sort((a, b) => b.views - a.views).slice(0, 5);
+  const maxViews = Math.max(...papers.map(p => p.views), 0);
+  const tagCounts = tags
+    .map(tag => ({ tag, count: papers.filter(p => p.tags.includes(tag.id)).length }))
+    .filter(t => t.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+  const trend = (() => {
+    const months: { label: string; count: number }[] = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const label = d.toLocaleDateString(undefined, { month: 'short' });
+      months.push({ label, count: 0 });
+    }
+    papers.forEach(p => {
+      const date = p.publishedAt ? new Date(p.publishedAt) : p.createdAt ? new Date(p.createdAt) : null;
+      if (!date) return;
+      const now2 = new Date();
+      const monthsAgo = (now2.getFullYear() - date.getFullYear()) * 12 + (now2.getMonth() - date.getMonth());
+      if (monthsAgo >= 0 && monthsAgo < 6) months[5 - monthsAgo].count++;
+    });
+    return months;
+  })();
 
   return (
     <div className="w-full max-w-7xl mx-auto p-6 md:p-8">
@@ -100,38 +126,118 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       </div>
 
       {activeTab === 'analytics' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex items-center justify-between shadow-xl">
-            <div>
-              <p className="text-sm font-medium text-text-secondary mb-1">{t('admin.metric.publications')}</p>
-              <p className="text-3xl font-bold text-text-primary">{papers.length}</p>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex items-center justify-between shadow-xl">
+              <div>
+                <p className="text-sm font-medium text-text-secondary mb-1">{t('admin.metric.publications')}</p>
+                <p className="text-3xl font-bold text-text-primary">{papers.length}</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-accent-indigo/10 text-accent-indigo flex items-center justify-center">
+                <FileText size={24} />
+              </div>
             </div>
-            <div className="w-12 h-12 rounded-full bg-accent-indigo/10 text-accent-indigo flex items-center justify-center">
-              <FileText size={24} />
+            
+            <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex items-center justify-between shadow-xl">
+              <div>
+                <p className="text-sm font-medium text-text-secondary mb-1">{t('admin.metric.views')}</p>
+                <p className="text-3xl font-bold text-text-primary">{totalViews.toLocaleString()}</p>
+                <p className="text-xs text-text-muted mt-1">{papers.length > 0 ? Math.round(totalViews / papers.length).toLocaleString() : 0} {t('admin.metric.avgViews')}</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-accent-cyan/10 text-accent-cyan flex items-center justify-center">
+                <Eye size={24} />
+              </div>
+            </div>
+            
+            <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex items-center justify-between shadow-xl">
+              <div>
+                <p className="text-sm font-medium text-text-secondary mb-1">{t('admin.metric.words')}</p>
+                <p className="text-3xl font-bold text-text-primary">{totalWords.toLocaleString()}</p>
+                <p className="text-xs text-text-muted mt-1">{totalReadingTime} {t('admin.metric.reading')}</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-accent-indigo/10 text-accent-indigo flex items-center justify-center">
+                <Activity size={24} />
+              </div>
             </div>
           </div>
-          
-          <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex items-center justify-between shadow-xl">
-            <div>
-              <p className="text-sm font-medium text-text-secondary mb-1">{t('admin.metric.views')}</p>
-              <p className="text-3xl font-bold text-text-primary">{totalViews.toLocaleString()}</p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+            <div className="lg:col-span-2 bg-bg-card border border-border-subtle rounded-3xl p-6 shadow-xl">
+              <h2 className="text-lg font-semibold text-text-primary mb-6 flex items-center">
+                <BarChart2 size={18} className="me-2 text-accent-cyan" /> {t('admin.analytics.topViews')}
+              </h2>
+              {topViewed.length === 0 ? (
+                <p className="text-text-muted text-sm py-8 text-center">{t('admin.analytics.noData')}</p>
+              ) : (
+                <div className="space-y-4">
+                  {topViewed.map((p, i) => (
+                    <div key={p.id} className="flex items-center gap-4">
+                      <span className={`w-6 text-center font-bold text-sm ${i < 3 ? 'text-accent-cyan' : 'text-text-muted'}`}>{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1 gap-2">
+                          <span className="text-sm font-medium text-text-secondary truncate">{p.title}</span>
+                          <span className="text-xs text-text-muted shrink-0">{p.views.toLocaleString()} {t('admin.analytics.views')}</span>
+                        </div>
+                        <div className="h-2 bg-bg-secondary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-accent-indigo to-accent-cyan rounded-full transition-all"
+                            style={{ width: `${maxViews > 0 ? Math.max(4, (p.views / maxViews) * 100) : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="w-12 h-12 rounded-full bg-accent-cyan/10 text-accent-cyan flex items-center justify-center">
-              <Eye size={24} />
+
+            <div className="bg-bg-card border border-border-subtle rounded-3xl p-6 shadow-xl">
+              <h2 className="text-lg font-semibold text-text-primary mb-6 flex items-center">
+                <TagIcon size={18} className="me-2 text-accent-indigo" /> {t('admin.analytics.byTag')}
+              </h2>
+              {tagCounts.length === 0 ? (
+                <p className="text-text-muted text-sm py-8 text-center">{t('admin.analytics.noData')}</p>
+              ) : (
+                <div className="space-y-4">
+                  {tagCounts.map(({ tag, count }) => (
+                    <div key={tag.id} className="flex items-center gap-3">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: tag.color }}></span>
+                      <span className="text-sm text-text-secondary truncate flex-1">{tag.name}</span>
+                      <span className="text-xs font-medium text-text-muted shrink-0">{count} {t('admin.analytics.papers')}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-          
-          <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex flex-col justify-center shadow-xl">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-text-secondary">{t('admin.metric.status')}</p>
-            </div>
-            <div className="flex flex-wrap gap-4 mt-2">
-              <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-accent-cyan me-2"></div><span className="text-sm text-text-secondary">{publishedCount} {t('admin.status.pub')}</span></div>
-              <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-text-muted me-2"></div><span className="text-sm text-text-secondary">{draftCount} {t('admin.status.draftShort')}</span></div>
-              <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-accent-indigo me-2"></div><span className="text-sm text-text-secondary">{scheduledCount} {t('admin.status.scheduledShort')}</span></div>
-            </div>
+
+          <div className="bg-bg-card border border-border-subtle rounded-3xl p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-text-primary mb-6 flex items-center">
+              <Clock size={18} className="me-2 text-accent-indigo" /> {t('admin.analytics.trend')}
+            </h2>
+            {trend.length === 0 ? (
+              <p className="text-text-muted text-sm py-8 text-center">{t('admin.analytics.noData')}</p>
+            ) : (
+              <div className="flex items-end gap-3 h-40">
+                {trend.map((month, i) => {
+                  const max = Math.max(...trend.map(m => m.count), 1);
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-2 min-w-0">
+                      <span className="text-xs text-text-muted">{month.count > 0 ? month.count : ''}</span>
+                      <div className="w-full max-w-12 bg-bg-secondary rounded-t-xl overflow-hidden flex items-end">
+                        <div
+                          className="w-full bg-gradient-to-t from-accent-indigo to-accent-cyan transition-all"
+                          style={{ height: `${Math.max(4, (month.count / max) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-text-muted whitespace-nowrap">{month.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        </div>
+        </>
       )}
 
       {activeTab === 'tags' && (

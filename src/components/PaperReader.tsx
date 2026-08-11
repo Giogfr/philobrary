@@ -3,12 +3,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { Paper, Tag } from '../types';
-import { X, Link as LinkIcon, Check, Clock, Calendar, ChevronLeft, List, ExternalLink, Download, Bookmark, Quote, Activity, FileDown, History, Type, AlignLeft, Sparkles } from 'lucide-react';
+import { X, Link as LinkIcon, Check, Clock, Calendar, ChevronLeft, List, ExternalLink, Download, Bookmark, Quote, Activity, FileDown, History, Type, AlignLeft, Sparkles, Sun, Moon, Globe } from 'lucide-react';
 import { getRelativeTime } from '../utils';
-import { useStore } from '../store';
-import { t } from '../i18n';
+import { useStore, SupportedLanguage } from '../store';
+import { t, languageNames, languageShortNames } from '../i18n';
 import { BASE_URL } from '../seo';
 import { stripDarkInlineColors } from '../utils';
+import { Flag } from './Flag';
+import { LanguageSelector } from './LanguageSelector';
 
 interface PaperReaderProps {
   paper: Paper;
@@ -38,7 +40,8 @@ const FONT_SIZE_VALUES = { base: '1rem', lg: '1.125rem', xl: '1.3125rem' } as co
 type FontSize = keyof typeof FONT_SIZE_VALUES;
 
 export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, isBookmarked, onToggleBookmark, onClose }) => {
-  const { language, translatedTitle, translatedContent, translatedFocusArea, translatedTagName, ensureContentTranslation, pendingTranslations } = useStore();
+  const { language, setLanguage, theme, toggleTheme, translatedTitle, translatedContent, translatedFocusArea, translatedTagName, ensureContentTranslation, pendingTranslations } = useStore();
+  const [showLangSelector, setShowLangSelector] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
   const [showCitations, setShowCitations] = useState(false);
@@ -148,6 +151,24 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, isBookmar
         </button>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggleTheme}
+            title={theme === 'dark' ? t('theme.light') : t('theme.dark')}
+            className="p-2.5 rounded-full transition-colors bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+
+          <button
+            onClick={() => setShowLangSelector(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-bg-hover rounded-full transition-colors"
+            title={t('lang.title')}
+          >
+            <Globe size={16} className="text-accent-indigo" />
+            <Flag code={language} className="w-4 h-4" />
+            <span className="hidden sm:inline">{languageShortNames[language]}</span>
+          </button>
+
           {isMarkdown && (
             <div className="flex items-center bg-bg-card rounded-full p-1 border border-border-subtle me-2">
               <button onClick={() => setFontSize('base')} className={`px-2.5 py-1 text-xs rounded-full transition-colors ${fontSize === 'base' ? 'bg-bg-hover text-text-primary' : 'text-text-muted'}`}>A</button>
@@ -281,6 +302,14 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, isBookmar
                   {displayContent}
                 </ReactMarkdown>
                 
+                {paper.googleDocUrl && (
+                  <div className="flex justify-end mb-8">
+                    <a href={paper.googleDocUrl} target="_blank" rel="noreferrer" className="flex items-center px-4 py-2 text-sm font-medium text-white bg-accent-cyan hover:opacity-90 rounded-full transition-opacity">
+                      {t('reader.openDocs')} <ExternalLink size={16} className="ms-2" />
+                    </a>
+                  </div>
+                )}
+
                 <div className="mt-16 pt-8 border-t border-border-subtle flex justify-end gap-3">
                   <button onClick={handleExportTxt} className="flex items-center px-4 py-2 text-sm text-text-secondary bg-bg-card hover:text-text-primary hover:bg-bg-hover rounded-full transition-colors">
                     <FileDown size={16} className="me-2 text-accent-cyan" /> {t('reader.exportTxt')}
@@ -384,6 +413,8 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, isBookmar
           </div>
         </div>
       )}
+
+      {showLangSelector && <LanguageSelector onClose={() => setShowLangSelector(false)} />}
     </div>
   );
 };

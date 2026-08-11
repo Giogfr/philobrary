@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { Paper, User, Tag, PaperStatus } from './types';
-import { sanitizeHTML } from './utils';
+import { sanitizeHTML, repairSeoFields } from './utils';
 import { auth, db } from './firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { ref, onValue, set, remove, update, get } from 'firebase/database';
@@ -198,7 +198,18 @@ onAuthStateChanged(auth, async (currentUser) => {
 
 onValue(ref(db, 'papers'), (snapshot) => {
   const data = snapshot.val();
-  const papers = data ? Object.values(data) as Paper[] : [];
+  const raw = data ? Object.values(data) as Paper[] : [];
+  const papers = raw.map(p => {
+    const fixed = repairSeoFields(p);
+    let changed = false;
+    const patch: Partial<Paper> = {};
+    if (fixed.metaDescription) { patch.metaDescription = fixed.metaDescription; changed = true; }
+    if (fixed.keywords) { patch.keywords = fixed.keywords; changed = true; }
+    if (changed) {
+      update(ref(db, 'papers/' + p.id), patch);
+    }
+    return { ...p, ...patch };
+  });
   setState({ papers });
 
   // Auto-publish scheduled papers whose time has come.

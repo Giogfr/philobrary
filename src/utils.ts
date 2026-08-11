@@ -51,10 +51,10 @@ export function stripDarkInlineColors(markdownOrHtml: string): string {
   );
 }
 
-/** Removes HTML tags, leaving plain text (for SEO descriptions, snippets, etc.). */
+/** Removes HTML tags (including malformed ones missing `>`), leaving plain text (for SEO descriptions, snippets, etc.). */
 export function htmlToText(markdownOrHtml: string): string {
   return markdownOrHtml
-    .replace(/<[^>]*>/g, ' ')
+    .replace(/<[^>]*>?/g, ' ')
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`([^`]*)`/g, '$1')
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
@@ -63,6 +63,58 @@ export function htmlToText(markdownOrHtml: string): string {
     .replace(/[*_~>#\-|\s]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Repairs content that was saved with malformed Google Docs inline HTML
+ * (e.g. `<span style="..."` fragments missing `>` and broken color values).
+ * Strips span/font tags (keeping inner text) and fixes color declarations.
+ */
+export function cleanLegacyMarkdown(md: string): string {
+  let out = md;
+  // Fix color declarations missing the leading `#`.
+  out = out.replace(/color:\s*(#?)([0-9a-fA-F]{6})(?=[;"\s])/g, 'color:#$2');
+  // Drop all span/font tags (well-formed or malformed), keeping inner text.
+  out = out.replace(/<\s*\/?\s*(?:span|font)\b[^>]*?>/gi, ' ');
+  // Drop malformed fragments that are missing the closing `>` entirely.
+  out = out.replace(/<\s*\/?\s*(?:span|font)\b[^>]*(?=$|<|\s+\w)/gi, ' ');
+  return out;
+}
+
+/**
+ * Repairs legacy SEO fields that were saved with raw HTML and CSS-token junk
+ * (e.g. `metaDescription` containing `<span ...>` and `keywords` being
+ * "span, style, background-color, ..."). Returns a copy with clean values.
+ */
+export function repairSeoFields(paper: { metaDescription?: string; keywords?: string; content?: string }): { metaDescription?: string; keywords?: string } {
+  const GARBAGE_KEYWORDS = new Set(['span', 'style', 'background-color', 'transparent', 'color', 'font-weight', '700', '700"', 'background']);
+  const result: { metaDescription?: string; keywords?: string } = {};
+
+  if (paper.metaDescription) {
+    const clean = htmlToText(paper.metaDescription).slice(0, 320);
+    if (clean && clean !== paper.metaDescription.trim()) result.metaDescription = clean;
+    else if (!clean) result.metaDescription = paper.content ? htmlToText(paper.content).slice(0, 320) : paper.metaDescription;
+  }
+
+  if (paper.keywords) {
+    const tokens = paper.keywords
+      .toLowerCase()
+      .split(/[,\n]+/)
+      .map(k => k.trim())
+      .filter(k => k.length > 2);
+    if (tokens.some(k => GARBAGE_KEYWORDS.has(k) || k.includes('222222') || k.includes('111111'))) {
+      result.keywords = htmlToText(paper.content || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(w => w.length > 3 && !GARBAGE_KEYWORDS.has(w))
+        .filter((w, i, a) => a.indexOf(w) === i)
+        .slice(0, 8)
+        .join(', ');
+    }
+  }
+
+  return result;
 }
 
 export const generateSlug = (title: string) => {

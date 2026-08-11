@@ -76,6 +76,43 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Hide horizontal scrollbars (mobile nav) without disabling scrolling */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media print {
+  nav, aside, .sticky {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .reader-root {
+    position: static !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .reader-root header,
+  .reader-root .fixed {
+    display: none !important;
+  }
+  #reader-main {
+    overflow: visible !important;
+  }
+  .reader-canvas {
+    box-shadow: none !important;
+    border: none !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+}
+
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);

@@ -1,13 +1,13 @@
 {
-  "name": "react-example",
+  "name": "philobrary",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build",
+    "build": "node scripts/generate-sitemap.mjs && vite build",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "node -e \"const fs=require('fs');['dist','server.js'].forEach(p=>fs.rmSync(p,{recursive:true,force:true}))\"",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

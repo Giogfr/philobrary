@@ -1,23 +1,5 @@
 import type { SupportedLanguage } from './store';
 
-export const languageFlags: Record<SupportedLanguage, string> = {
-  en: '🇬🇧',
-  ka: '🇬🇪',
-  ru: '🇷🇺',
-  pl: '🇵🇱',
-  he: '🇮🇱',
-  ar: '🇸🇦',
-  es: '🇪🇸',
-  fr: '🇫🇷',
-  de: '🇩🇪',
-  it: '🇮🇹',
-  pt: '🇵🇹',
-  tr: '🇹🇷',
-  ja: '🇯🇵',
-  zh: '🇨🇳',
-  uk: '🇺🇦',
-};
-
 export const languageNames: Record<SupportedLanguage, string> = {
   en: 'English (EN)',
   ka: 'ქართული (KA)',
@@ -88,6 +70,8 @@ const en: TranslationKey = {
   'filter.more': 'More',
   'filter.less': 'Show Less',
   'notFound': 'Essay not found. It may have been removed or unpublished.',
+  'notFound.title': 'Page not found.',
+  'notFound.page': 'This page does not exist',
   'empty.library.title': 'Library is empty',
   'empty.library.desc': 'No papers have been published yet or match your current search filters.',
   'empty.saved.title': 'No saved papers',
@@ -112,6 +96,11 @@ const en: TranslationKey = {
   'reader.exportTxt': '.txt',
   'reader.exportMd': '.md',
   'reader.revisions': 'Revision History',
+  'reader.related': 'Related Reading',
+  'reader.top': 'Back to top',
+  'reader.shareTitle': 'Share this paper',
+  'reader.shareSystem': 'Share via system',
+  'reader.copyLink': 'Copy link',
   'reader.translating': 'Translating...',
   'reader.translateFailed': 'Translation failed',
   'reader.format.title': 'Formatting',

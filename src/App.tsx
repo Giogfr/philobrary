@@ -1,18 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Link } from 'react-router-dom';
 import { updateProfile } from 'firebase/auth';
 import { auth } from './firebase';
-import { AdminLogin } from './components/AdminLogin';
-import { AdminDashboard } from './components/AdminDashboard';
-import { PaperReader } from './components/PaperReader';
-import { LanguageSelector } from './components/LanguageSelector';
 import { useStore, isAdminEmail } from './store';
 import { Paper, Tag } from './types';
 import { Flag } from './components/Flag';
-import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye } from 'lucide-react';
+import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon } from 'lucide-react';
 import { t, languageShortNames } from './i18n';
 import { setSeo, resetSeo, stripMarkdown, BASE_URL } from './seo';
 import { htmlToText } from './utils';
+
+// Route-level code splitting — admin + auth screens load on demand.
+const AdminLogin = lazy(() => import('./components/AdminLogin').then(m => ({ default: m.AdminLogin })));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const PaperReader = lazy(() => import('./components/PaperReader').then(m => ({ default: m.PaperReader })));
+const LanguageSelector = lazy(() => import('./components/LanguageSelector').then(m => ({ default: m.LanguageSelector })));
+
+function RouteFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="w-8 h-8 rounded-full border-2 border-border-subtle border-t-accent-indigo animate-spin" />
+    </div>
+  );
+}
 
 type SortOption = 'newest' | 'oldest' | 'views' | 'alpha';
 
@@ -43,7 +53,7 @@ function ToastContainer() {
 function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
   const { 
     papers, tags, user, bookmarkedIds, 
-    incrementViews, toggleBookmark,
+    toggleBookmark,
     translatedTitle, translatedTagName, translatedFocusArea,
     ensureContentTranslation, language
   } = useStore();
@@ -53,7 +63,25 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
+  const sortRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
+        setShowSortDropdown(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowSortDropdown(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   const now = Date.now();
   const processedPapers = papers.map(p => {
@@ -64,7 +92,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
   });
 
   const libraryPapers = currentView === 'saved' 
-    ? processedPapers.filter(p => bookmarkedIds.includes(p.id))
+    ? processedPapers.filter(p => bookmarkedIds.includes(p.id) && p.status === 'published')
     : processedPapers.filter(p => p.status === 'published');
   
   const filteredPapers = libraryPapers.filter(paper => {
@@ -86,7 +114,6 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
   });
 
   const handleReadPaper = (paper: Paper) => {
-    incrementViews(paper.id);
     ensureContentTranslation(paper, language);
     navigate(`/p/${paper.slug}`);
   };
@@ -106,7 +133,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
     <>
       <div className="max-w-7xl mx-auto px-6 py-12 md:py-20">
         <div className="max-w-3xl mb-16">
-          <h1 className="text-4xl md:text-6xl font-bold text-text-primary tracking-tight mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold text-text-primary tracking-tight mb-6 leading-tight">
             {currentView === 'saved' ? t('hero.title.saved') : <>{t('hero.title.library1')}<span className="text-transparent bg-clip-text bg-gradient-to-r from-accent-indigo to-accent-cyan">{t('hero.title.library2')}</span></>}
           </h1>
           <p className="text-lg md:text-xl text-text-secondary leading-relaxed">
@@ -124,7 +151,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
             />
           </div>
           
-          <div className="relative min-w-[200px]">
+          <div className="relative min-w-[200px]" ref={sortRef}>
             <button onClick={() => setShowSortDropdown(!showSortDropdown)} className="w-full h-full flex items-center justify-between px-5 py-4 bg-bg-card border border-border-subtle text-text-primary rounded-2xl hover:bg-bg-hover transition-colors">
               <div className="flex items-center"><SlidersHorizontal size={18} className="me-3 text-text-muted" /> {t('sort.label')} {t(SORT_LABEL_KEY[sortBy])}</div>
               <ChevronDown size={16} className="text-text-muted" />
@@ -148,7 +175,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
           >
             {t('filter.all')}
           </button>
-          {tags.slice(0, showAllTags ? tags.length : 8).map(tag => (
+          {tags.slice(0, showAllTags || selectedTagId !== 'All' ? tags.length : 8).map(tag => (
             <button
               key={tag.id}
               onClick={() => setSelectedTagId(tag.id)}
@@ -203,7 +230,8 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                 >
                   <button 
                     onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
-                    className={`absolute top-6 end-6 p-2 rounded-full transition-colors z-10 ${isSaved ? 'text-accent-indigo bg-accent-indigo/10' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'}`}
+                    aria-label={isSaved ? t('reader.bookmark') : t('reader.bookmark')}
+                    className={`absolute top-6 end-6 p-2.5 rounded-full transition-colors z-10 ${isSaved ? 'text-accent-indigo bg-accent-indigo/10' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'}`}
                   >
                     <Bookmark size={18} fill={isSaved ? "currentColor" : "none"} />
                   </button>
@@ -311,11 +339,35 @@ function ProfileView() {
   );
 }
 
+function NotFoundView() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    setSeo({ title: t('notFound.title'), description: t('notFound.title') });
+  }, []);
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[55vh] px-6 text-center">
+      <p className="text-7xl md:text-8xl font-bold bg-gradient-to-r from-accent-indigo to-accent-cyan bg-clip-text text-transparent mb-6">404</p>
+      <h1 className="text-2xl font-bold text-text-primary mb-3">{t('notFound.page')}</h1>
+      <p className="text-text-muted max-w-md mb-8">{t('notFound.title')}</p>
+      <button onClick={() => navigate('/')} className="px-6 py-3 bg-text-primary text-bg-primary rounded-full font-medium hover:bg-bg-hover transition-colors">
+        {t('empty.explore')}
+      </button>
+    </div>
+  );
+}
+
 function PublicPaperView() {
   const { slug = '' } = useParams<{ slug: string }>();
   const { papers, tags, bookmarkedIds, toggleBookmark, incrementViews, language, ensureContentTranslation } = useStore();
   const navigate = useNavigate();
-  const paper = papers.find(p => p.slug === slug && p.status === 'published');
+  const now = Date.now();
+  const processedPapers = papers.map(p => {
+    if (p.status === 'scheduled' && p.scheduledFor && new Date(p.scheduledFor).getTime() <= now) {
+      return { ...p, status: 'published' as const, publishedAt: p.scheduledFor };
+    }
+    return p;
+  });
+  const paper = processedPapers.find(p => p.slug === slug && p.status === 'published');
 
   useEffect(() => {
     if (!paper) {
@@ -360,6 +412,7 @@ function PublicPaperView() {
     <PaperReader
       paper={paper}
       tags={tags}
+      allPapers={processedPapers}
       isBookmarked={bookmarkedIds.includes(paper.id)}
       onToggleBookmark={toggleBookmark}
       onClose={() => navigate('/')}
@@ -403,59 +456,64 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-bg-primary selection:bg-accent-indigo/30 selection:text-text-primary pb-20">
       <nav className="sticky top-0 z-30 bg-bg-primary/80 backdrop-blur-xl border-b border-border-subtle">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3 cursor-pointer">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-2">
+          <Link to="/" className="flex items-center gap-3 cursor-pointer shrink-0">
             <img
               src="/assets/logo-rounded.webp"
               alt="Philobrary"
-              className="w-10 h-10 rounded-2xl object-cover shadow-lg shadow-accent-indigo/20"
+              className="w-9 h-9 md:w-10 md:h-10 rounded-2xl object-cover shadow-lg shadow-accent-indigo/20"
             />
-            <span className="text-xl font-bold text-text-primary tracking-tight hidden sm:block">Philobrary</span>
+            <span className="text-lg md:text-xl font-bold text-text-primary tracking-tight hidden sm:block">Philobrary</span>
           </Link>
 
-          <div className="flex items-center gap-2 md:gap-4">
-            <Link to="/" className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${location.pathname === '/' ? 'bg-bg-card text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
-              {t('nav.library')}
+          <div className="flex items-center gap-1.5 md:gap-4 overflow-x-auto no-scrollbar">
+            <Link to="/" className={`flex items-center px-3 md:px-4 py-2 text-sm font-medium rounded-full transition-colors shrink-0 ${location.pathname === '/' ? 'bg-bg-card text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
+              <LibraryIcon size={16} className="md:hidden me-1.5" />
+              <span className="hidden md:inline">{t('nav.library')}</span>
+              <span className="md:hidden">{t('nav.library')}</span>
             </Link>
-            <Link to="/saved" className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${location.pathname === '/saved' ? 'bg-bg-card text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
-              {t('nav.saved')}
+            <Link to="/saved" className={`flex items-center px-3 md:px-4 py-2 text-sm font-medium rounded-full transition-colors shrink-0 ${location.pathname === '/saved' ? 'bg-bg-card text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
+              <Bookmark size={16} className="md:hidden me-1.5" />
+              <span className="hidden md:inline">{t('nav.saved')}</span>
+              <span className="md:hidden">{t('nav.saved')}</span>
             </Link>
 
             <button
               onClick={toggleTheme}
               title={theme === 'dark' ? t('theme.light') : t('theme.dark')}
-              className="p-2 text-text-secondary hover:text-accent-indigo hover:bg-accent-indigo/10 rounded-full transition-colors"
+              aria-label={theme === 'dark' ? t('theme.light') : t('theme.dark')}
+              className="p-2.5 text-text-secondary hover:text-accent-indigo hover:bg-accent-indigo/10 rounded-full transition-colors shrink-0"
             >
               {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
 
             <button
               onClick={() => setShowLangSelector(true)}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-bg-hover rounded-full transition-colors border border-border-subtle"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-bg-hover rounded-full transition-colors border border-border-subtle shrink-0"
             >
               <Globe size={16} className="text-accent-indigo" />
               <Flag code={language} className="w-5 h-5" />
-              <span>{languageShortNames[language]}</span>
+              <span className="hidden sm:inline">{languageShortNames[language]}</span>
             </button>
             
-            <div className="w-px h-6 bg-border-subtle mx-2"></div>
+            <div className="w-px h-6 bg-border-subtle mx-1 shrink-0"></div>
             {user.isAuthenticated ? (
               <>
-                <Link to="/profile" className="p-2 text-text-secondary hover:text-accent-indigo hover:bg-accent-indigo/10 rounded-full transition-colors" title={t('nav.profile')}>
+                <Link to="/profile" className="p-2.5 text-text-secondary hover:text-accent-indigo hover:bg-accent-indigo/10 rounded-full transition-colors shrink-0" title={t('nav.profile')} aria-label={t('nav.profile')}>
                   <UserIcon size={18} />
                 </Link>
                 {isAdminEmail(user.email) && (
-                  <Link to="/admin" className={`flex items-center px-4 py-2 text-sm font-medium transition-colors rounded-full ${location.pathname === '/admin' ? 'bg-bg-card text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'}`}>
-                    <ShieldCheck size={16} className="md:me-2 text-accent-cyan" />
+                  <Link to="/admin" className={`flex items-center px-3 md:px-4 py-2 text-sm font-medium transition-colors rounded-full shrink-0 ${location.pathname === '/admin' ? 'bg-bg-card text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'}`}>
+                    <ShieldCheck size={16} className="me-1.5 text-accent-cyan" />
                     <span className="hidden md:inline">{t('nav.admin')}</span>
                   </Link>
                 )}
-                <button onClick={() => { logout(); navigate('/'); }} className="p-2 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-full transition-colors" title={t('nav.signout')}>
+                <button onClick={() => { logout(); navigate('/'); }} className="p-2.5 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-full transition-colors shrink-0" title={t('nav.signout')} aria-label={t('nav.signout')}>
                   <LogOut size={18} />
                 </button>
               </>
             ) : (
-              <Link to="/login" className="px-4 py-2 text-sm font-medium text-text-primary hover:bg-bg-hover bg-bg-card border border-border-subtle rounded-full transition-colors">
+              <Link to="/login" className="px-4 py-2 text-sm font-medium text-text-primary hover:bg-bg-hover bg-bg-card border border-border-subtle rounded-full transition-colors shrink-0">
                 {t('nav.signin')}
               </Link>
             )}
@@ -464,27 +522,30 @@ export default function App() {
       </nav>
 
       <main className="flex-1 w-full">
-        <Routes>
-          <Route path="/" element={<LibraryView currentView="library" />} />
-          <Route path="/saved" element={<LibraryView currentView="saved" />} />
-          <Route path="/p/:slug" element={<PublicPaperView />} />
-          <Route path="/login" element={<AdminLogin onClose={() => navigate('/')} onLogin={() => navigate('/')} />} />
-          <Route path="/admin" element={
-            isAdminEmail(user.email) ? (
-              <AdminDashboard 
-                papers={processedPapers} tags={tags}
-                onAdd={addPaper} onUpdate={updatePaper} onDelete={deletePaper}
-                onAddTag={addTag} onDeleteTag={deleteTag}
-                onLogout={() => { logout(); navigate('/'); }}
-              />
-            ) : (
-              <div className="flex items-center justify-center min-h-[50vh]">
-                <p className="text-text-secondary text-lg">{t('unauthorized')}</p>
-              </div>
-            )
-          } />
-          <Route path="/profile" element={<ProfileView />} />
-        </Routes>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/" element={<LibraryView currentView="library" />} />
+            <Route path="/saved" element={<LibraryView currentView="saved" />} />
+            <Route path="/p/:slug" element={<PublicPaperView />} />
+            <Route path="/login" element={<AdminLogin onClose={() => navigate('/')} onLogin={() => navigate('/')} />} />
+            <Route path="/admin" element={
+              isAdminEmail(user.email) ? (
+                <AdminDashboard 
+                  papers={processedPapers} tags={tags}
+                  onAdd={addPaper} onUpdate={updatePaper} onDelete={deletePaper}
+                  onAddTag={addTag} onDeleteTag={deleteTag}
+                  onLogout={() => { logout(); navigate('/'); }}
+                />
+              ) : (
+                <div className="flex items-center justify-center min-h-[50vh]">
+                  <p className="text-text-secondary text-lg">{t('unauthorized')}</p>
+                </div>
+              )
+            } />
+            <Route path="/profile" element={<ProfileView />} />
+            <Route path="*" element={<NotFoundView />} />
+          </Routes>
+        </Suspense>
       </main>
       
       <ToastContainer />

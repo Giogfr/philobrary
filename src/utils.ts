@@ -1,12 +1,5 @@
 import DOMPurify from 'dompurify';
 
-export async function sha256(message: string): Promise<string> {
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
 export function getRelativeTime(timestampStr: string): string {
   const timestamp = new Date(timestampStr).getTime();
   const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
@@ -111,22 +104,6 @@ export function repairFlattenedTables(markdown: string): string {
 }
 
 /**
- * Repairs content that was saved with malformed Google Docs inline HTML
- * (e.g. `<span style="..."` fragments missing `>` and broken color values).
- * Strips span/font tags (keeping inner text) and fixes color declarations.
- */
-export function cleanLegacyMarkdown(md: string): string {
-  let out = md;
-  // Fix color declarations missing the leading `#`.
-  out = out.replace(/color:\s*(#?)([0-9a-fA-F]{6})(?=[;"\s])/g, 'color:#$2');
-  // Drop all span/font tags (well-formed or malformed), keeping inner text.
-  out = out.replace(/<\s*\/?\s*(?:span|font)\b[^>]*?>/gi, ' ');
-  // Drop malformed fragments that are missing the closing `>` entirely.
-  out = out.replace(/<\s*\/?\s*(?:span|font)\b[^>]*(?=$|<|\s+\w)/gi, ' ');
-  return out;
-}
-
-/**
  * Repairs legacy SEO fields that were saved with raw HTML and CSS-token junk
  * (e.g. `metaDescription` containing `<span ...>` and `keywords` being
  * "span, style, background-color, ..."). Returns a copy with clean values.
@@ -165,6 +142,17 @@ export function repairSeoFields(paper: { metaDescription?: string; keywords?: st
 export const generateSlug = (title: string) => {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 };
+
+/** Strips inline markdown formatting from a heading line and returns a stable anchor id. */
+export function headingSlug(line: string): { text: string; id: string } {
+  const text = line
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*_`~>#]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const id = text.toLowerCase().replace(/[^a-z0-9\u0400-\u04FF\u0590-\u05FF\u0600-\u06FF\u4E00-\u9FFF]+/g, '-').replace(/(^-|-$)+/g, '') || `h-${Math.random().toString(36).slice(2, 7)}`;
+  return { text, id };
+}
 
 export const extractGoogleDocId = (url: string) => {
   const match = url.match(/\/document\/d\/([a-zA-Z0-9-_]+)/);

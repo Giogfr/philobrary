@@ -58,6 +58,7 @@ export function setSeo({ title, description, url, ogImage, type = 'website', key
   setMeta('property', 'og:site_name', SITE_NAME);
   setMeta('property', 'og:description', description || '');
   setMeta('property', 'og:image', ogImage || BASE_URL + '/assets/logo-512.png');
+  setMeta('property', 'og:locale', ogLocale());
   setMeta('name', 'twitter:card', 'summary');
   setMeta('name', 'twitter:title', title);
   setMeta('name', 'twitter:description', description || '');
@@ -65,6 +66,17 @@ export function setSeo({ title, description, url, ogImage, type = 'website', key
   setLink('canonical', url || BASE_URL + '/');
 
   if (jsonLd) addJsonLd('page-jsonld', jsonLd);
+}
+
+const OG_LOCALES: Record<string, string> = {
+  en: 'en_US', ka: 'ka_GE', ru: 'ru_RU', pl: 'pl_PL', he: 'he_IL', ar: 'ar_SA',
+  es: 'es_ES', fr: 'fr_FR', de: 'de_DE', it: 'it_IT', pt: 'pt_PT', tr: 'tr_TR',
+  ja: 'ja_JP', zh: 'zh_CN', uk: 'uk_UA',
+};
+
+function ogLocale(): string {
+  const lang = document.documentElement.lang || 'en';
+  return OG_LOCALES[lang] || 'en_US';
 }
 
 /** Resets to the site-wide default SEO (used on the main pages). */

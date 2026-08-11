@@ -163,6 +163,7 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'info')
 function setTheme(theme: 'light' | 'dark') {
   const root = document.documentElement;
   root.classList.toggle('dark', theme === 'dark');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#1C1C1F' : '#F8FAFC');
   writeStorage('theme', theme);
   setState({ theme });
 }
@@ -171,6 +172,7 @@ function setLanguage(lang: SupportedLanguage) {
   setCurrentLang(lang);
   const root = document.documentElement;
   root.dir = ['he', 'ar'].includes(lang) ? 'rtl' : 'ltr';
+  root.lang = lang;
   writeStorage('language', lang);
   setState({ language: lang });
 }
@@ -233,6 +235,7 @@ onValue(ref(db, 'tags'), (snapshot) => {
   const root = document.documentElement;
   root.classList.toggle('dark', state.theme === 'dark');
   root.dir = ['he', 'ar'].includes(state.language) ? 'rtl' : 'ltr';
+  root.lang = state.language;
   setCurrentLang(state.language);
 }
 
@@ -261,11 +264,12 @@ const toggleBookmark = async (id: string) => {
   setState({ bookmarkedIds: newBookmarks });
   try {
     await update(ref(db, 'users/' + auth.currentUser.uid), { bookmarkedIds: newBookmarks });
-    if (isSaving) {
-      const paper = state.papers.find(p => p.id === id);
-      if (paper) {
-        await update(ref(db, 'papers/' + id), { savedCount: (paper.savedCount || 0) + 1 });
-      }
+    const paper = state.papers.find(p => p.id === id);
+    if (paper) {
+      const nextCount = isSaving
+        ? (paper.savedCount || 0) + 1
+        : Math.max(0, (paper.savedCount || 0) - 1);
+      await update(ref(db, 'papers/' + id), { savedCount: nextCount });
     }
   } catch (e) {
     console.error(e);
@@ -395,16 +399,6 @@ const addTag = async (tag: Tag) => {
     showToast('toast.tagAdded', 'success');
   } catch (e) {
     console.error('Failed to add tag:', e);
-    showToast('toast.saveFailed', 'error');
-  }
-};
-
-const updateTag = async (tag: Tag) => {
-  try {
-    verifyAuth();
-    await set(ref(db, 'tags/' + tag.id), tag);
-  } catch (e) {
-    console.error('Failed to update tag:', e);
     showToast('toast.saveFailed', 'error');
   }
 };
@@ -590,7 +584,6 @@ export function useStore() {
     setPaperStatus,
     incrementViews,
     addTag,
-    updateTag,
     deleteTag,
     seedPremadeTags,
     toggleBookmark,

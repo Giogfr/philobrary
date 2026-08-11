@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Globe, Check, X } from 'lucide-react';
 import { useStore, SupportedLanguage } from '../store';
 import { languageNames, t } from '../i18n';
@@ -12,6 +12,14 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onClose }) =
   const { language, setLanguage } = useStore();
   const [search, setSearch] = useState('');
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const entries = Object.entries(languageNames) as [SupportedLanguage, string][];
   const filtered = entries.filter(([code, name]) =>
     name.toLowerCase().includes(search.toLowerCase()) ||
@@ -19,8 +27,8 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onClose }) =
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg-primary/70 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-bg-card border border-border-subtle rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg-primary/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md bg-bg-card border border-border-subtle rounded-3xl overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()} role="dialog" aria-label={t('lang.title')}>
         <div className="p-4 border-b border-border-subtle flex items-center justify-between">
           <h2 className="text-xl font-bold text-text-primary flex items-center">
             <Globe className="me-2 text-accent-indigo" size={24} />

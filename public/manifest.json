@@ -2,7 +2,7 @@
   "name": "Philobrary - Philosophy Essay Library",
   "short_name": "Philobrary",
   "description": "A curated digital library of philosophy essays, thinkers, and original research.",
-  "start_url": "https://philobrary.vercel.app/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#F8FAFC",
   "theme_color": "#4F46E5",

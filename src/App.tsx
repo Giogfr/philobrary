@@ -5,7 +5,7 @@ import { auth } from './firebase';
 import { useStore, isAdminEmail } from './store';
 import { Paper, Tag } from './types';
 import { Flag } from './components/Flag';
-import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon, LayoutGrid, List, ArrowUp, X, Sparkles } from 'lucide-react';
+import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon, LayoutGrid, List, ArrowUp, X, Sparkles, Clock } from 'lucide-react';
 import { t, languageShortNames } from './i18n';
 import { setSeo, resetSeo, stripMarkdown, BASE_URL, setHreflangAlternates, createBreadcrumbJsonLd, addJsonLd } from './seo';
 import { htmlToText } from './utils';
@@ -364,54 +364,153 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
             {filteredPapers.map(paper => {
               const paperTags = paper.tags.map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
               const isSaved = bookmarkedIds.includes(paper.id);
+              const primaryTag = paperTags[0];
+              const tagColor = primaryTag?.color || '#4F46E5';
+              const tagBg = `${tagColor}15`;
+              const tagBorder = `${tagColor}30`;
+              const tagText = tagColor;
               const excerpt = paper.metaDescription
                 ? paper.metaDescription
-                : htmlToText(paper.content).slice(0, 220);
-              const cardClass = viewMode === 'grid'
-                ? 'flex flex-col bg-bg-card border border-border-subtle hover:border-accent-indigo/50 rounded-3xl p-6 md:p-8 cursor-pointer transition-all hover:shadow-2xl hover:shadow-accent-indigo/10 hover:-translate-y-1 relative'
-                : 'flex flex-col sm:flex-row sm:items-center gap-4 bg-bg-card border border-border-subtle hover:border-accent-indigo/50 rounded-2xl p-5 cursor-pointer transition-all hover:shadow-lg relative';
-              return (
-                <div 
-                  key={paper.id} 
-                  onClick={() => handleReadPaper(paper)}
-                  className={cardClass}
-                >
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
-                    aria-label={t('reader.bookmark')}
-                    className={`absolute top-5 end-5 p-2.5 rounded-full transition-colors z-10 ${isSaved ? 'text-accent-indigo bg-accent-indigo/10' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'}`}
-                  >
-                    <Bookmark size={18} fill={isSaved ? "currentColor" : "none"} />
-                  </button>
+                : htmlToText(paper.content).slice(0, viewMode === 'grid' ? 180 : 220);
+              const progressKey = `philobrary_progress_${paper.slug}`;
+              const savedProgress = typeof localStorage !== 'undefined' ? Number(localStorage.getItem(progressKey) || 0) : 0;
+              const hasProgress = savedProgress > 0 && savedProgress < 100;
 
-                  <div className={`flex flex-wrap gap-2 mb-4 pe-10 ${viewMode === 'list' ? 'sm:pe-0 sm:mb-0 sm:min-w-[200px] sm:flex-col sm:items-start sm:gap-1.5' : ''}`}>
-                    {paperTags.slice(0, 3).map(t => (
-                      <span key={t.id} style={{ color: t.color, backgroundColor: `${t.color}15`, borderColor: `${t.color}30` }} className="px-3 py-1 text-xs font-medium border rounded-full">
-                        {translatedTagName(t)}
+              // Grid view card
+              if (viewMode === 'grid') {
+                return (
+                  <article
+                    key={paper.id}
+                    onClick={() => handleReadPaper(paper)}
+                    className="group relative flex flex-col bg-bg-card border border-border-subtle rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-[0_20px_40px_-12px_rgba(79,70,229,0.15)] hover:-translate-y-1 hover:border-accent-indigo/30"
+                    style={{ '--tag-color': tagColor } as React.CSSProperties}
+                  >
+                    {/* Tag accent bar at top */}
+                    <div className="h-1.5 bg-[var(--tag-color)] w-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    
+                    {/* Header with tag + bookmark */}
+                    <div className="p-5 pt-4 flex items-start justify-between gap-3">
+                      <span className="inline-flex items-center px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded-full border transition-all"
+                        style={{ backgroundColor: tagBg, borderColor: tagBorder, color: tagText }}>
+                        {translatedTagName(primaryTag)}
                       </span>
-                    ))}
-                  </div>
-                  
-                  <div className={viewMode === 'list' ? 'flex-1 min-w-0' : ''}>
-                    <h3 className={`font-bold text-text-primary mb-2 leading-snug group-hover:text-accent-cyan transition-colors line-clamp-2 ${viewMode === 'grid' ? 'text-xl md:text-2xl' : 'text-lg sm:text-xl'}`}>
-                      {translatedTitle(paper)}
-                    </h3>
-                    <p className={`text-sm text-text-secondary leading-relaxed line-clamp-2 ${viewMode === 'grid' ? 'line-clamp-3 mb-5' : 'hidden sm:block sm:mb-2'}`}>
-                      {excerpt}
-                    </p>
-                    {translatedFocusArea(paper) && (
-                      <p className="text-xs font-medium text-accent-cyan mb-4">{translatedFocusArea(paper)}</p>
-                    )}
-                    <div className={`flex items-center justify-between border-t border-border-subtle/60 pt-4 ${viewMode === 'list' ? 'sm:border-t-0 sm:pt-0' : ''}`}>
-                      <span className="text-sm font-medium text-text-secondary truncate max-w-[140px]">{paper.author}</span>
-                      <div className="flex items-center text-xs text-text-muted font-medium gap-3">
-                        <span className="flex items-center gap-1"><Eye size={12} /> {paper.views.toLocaleString()}</span>
-                        <span className="flex items-center gap-1"><Bookmark size={12} /> {(paper.savedCount || 0).toLocaleString()}</span>
-                        <span>{paper.readingTimeMinutes} {t('paper.minRead')}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
+                        aria-label={t('reader.bookmark')}
+                        className={`flex-shrink-0 p-2 rounded-xl transition-all duration-200 ${isSaved ? 'text-accent-indigo bg-accent-indigo/10 scale-100' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'}`}
+                      >
+                        <Bookmark size={18} fill={isSaved ? "currentColor" : "none"} />
+                      </button>
+                    </div>
+
+                    {/* Content area */}
+                    <div className="flex-1 p-5 pt-2 flex flex-col">
+                      <h3 className="font-bold text-text-primary leading-tight mb-3 line-clamp-2 group-hover:text-accent-cyan transition-colors duration-200 text-lg md:text-xl">
+                        {translatedTitle(paper)}
+                      </h3>
+                      
+                      <p className="text-text-secondary leading-relaxed line-clamp-3 flex-1 text-sm mb-4">
+                        {excerpt}
+                      </p>
+
+                      {/* Focus area badge */}
+                      {translatedFocusArea(paper) && (
+                        <span className="mb-4 inline-flex items-center px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/20 rounded-full">
+                          {translatedFocusArea(paper)}
+                        </span>
+                      )}
+
+                      {/* Reading progress bar */}
+                      {hasProgress && (
+                        <div className="mb-4 h-1.5 bg-bg-secondary rounded-full overflow-hidden" role="progressbar" aria-valuenow={savedProgress} aria-valuemin={0} aria-valuemax={100} aria-label={`Reading progress: ${savedProgress}%`}>
+                          <div className="h-full bg-[var(--tag-color)] rounded-full transition-all duration-500" style={{ width: `${savedProgress}%` }} />
+                        </div>
+                      )}
+
+                      {/* Footer with author + stats */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-border-subtle/50">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-accent-indigo to-accent-cyan flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                            {paper.author.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-medium text-text-secondary truncate max-w-[140px] sm:max-w-[200px]">{paper.author}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-[11px] font-medium text-text-muted">
+                          <span className="flex items-center gap-1" title="Views"><Eye size={11} /> {paper.views.toLocaleString()}</span>
+                          <span className="flex items-center gap-1" title="Saves"><Bookmark size={11} /> {(paper.savedCount || 0).toLocaleString()}</span>
+                          <span className="flex items-center gap-1"><Clock size={11} /> {paper.readingTimeMinutes} {t('paper.minRead')}</span>
+                        </div>
                       </div>
                     </div>
+
+                    {/* Subtle bottom gradient fade */}
+                    <div className="absolute bottom-0 start-0 end-0 h-16 bg-gradient-to-t from-bg-card to-transparent pointer-events-none opacity-50 group-hover:opacity-0 transition-opacity" />
+                  </article>
+                );
+              }
+
+              // List view card
+              return (
+                <article
+                  key={paper.id}
+                  onClick={() => handleReadPaper(paper)}
+                  className="group relative flex flex-col sm:flex-row sm:items-start gap-5 bg-bg-card border border-border-subtle rounded-2xl p-5 cursor-pointer transition-all duration-300 hover:shadow-xl hover:border-accent-indigo/30 hover:bg-bg-hover/50"
+                  style={{ '--tag-color': tagColor } as React.CSSProperties}
+                >
+                  {/* Left accent bar */}
+                  <div className="absolute top-0 bottom-0 start-0 w-1 bg-[var(--tag-color)] opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-s-2xl" />
+
+                  <div className="flex-1 min-w-0 p-1 pr-0">
+                    {/* Tag + bookmark row */}
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <span className="inline-flex items-center px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider rounded-full border transition-all"
+                        style={{ backgroundColor: tagBg, borderColor: tagBorder, color: tagText }}>
+                        {translatedTagName(primaryTag)}
+                      </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
+                        aria-label={t('reader.bookmark')}
+                        className={`flex-shrink-0 p-2 rounded-xl transition-all duration-200 ${isSaved ? 'text-accent-indigo bg-accent-indigo/10' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'}`}
+                      >
+                        <Bookmark size={16} fill={isSaved ? "currentColor" : "none"} />
+                      </button>
+                    </div>
+
+                    <h3 className="font-bold text-text-primary leading-snug mb-2 line-clamp-2 group-hover:text-accent-cyan transition-colors duration-200 text-lg">
+                      {translatedTitle(paper)}
+                    </h3>
+
+                    <p className="text-text-secondary leading-relaxed line-clamp-2 hidden sm:block text-sm mb-3">
+                      {excerpt}
+                    </p>
+
+                    {/* Meta row */}
+                    <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium text-text-muted">
+                      <div className="flex items-center gap-1">
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-accent-indigo to-accent-cyan flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
+                          {paper.author.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-medium text-text-secondary truncate max-w-[160px]">{paper.author}</span>
+                      </div>
+                      {translatedFocusArea(paper) && (
+                        <span className="px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/20 rounded-full">
+                          {translatedFocusArea(paper)}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1"><Eye size={10} /> {paper.views.toLocaleString()}</span>
+                      <span className="flex items-center gap-1"><Bookmark size={10} /> {(paper.savedCount || 0).toLocaleString()}</span>
+                      <span className="flex items-center gap-1"><Clock size={10} /> {paper.readingTimeMinutes} {t('paper.minRead')}</span>
+                      {hasProgress && (
+                        <span className="flex items-center gap-1 text-accent-indigo">
+                          <div className="w-16 h-1.5 bg-bg-secondary rounded-full overflow-hidden">
+                            <div className="h-full bg-[var(--tag-color)] rounded-full" style={{ width: `${savedProgress}%` }} />
+                          </div>
+                          <span>{savedProgress}%</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>

@@ -158,7 +158,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
       if (mainEl) mainEl.removeEventListener('scroll', handleScroll);
       if (saveProgressTimer.current) window.clearTimeout(saveProgressTimer.current);
     };
-  }, [paper, isMarkdown, scrollTo, headings, zoomedImg, showCitations, showShare, showLangSelector, showOutline]);
+  }, [paper, isMarkdown, scrollTo, zoomedImg, showCitations, showShare, showLangSelector, showOutline]);
 
   useEffect(() => {
     if (isMarkdown) {

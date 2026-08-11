@@ -91,6 +91,7 @@ const en: TranslationKey = {
   'library.author': 'Filter by author',
   'library.allAuthors': 'All authors',
   'library.new': 'New',
+  'library.suggestedForYou': 'Suggested for you',
   'library.paper': 'paper',
   'library.papers': 'papers',
   'paper.minRead': 'min read',
@@ -456,6 +457,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   ru: {
     'nav.library': 'Библиотека',
@@ -660,6 +662,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   pl: {
     'nav.library': 'Biblioteka',
@@ -864,6 +867,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   he: {
     'nav.library': 'ספרייה',
@@ -1068,6 +1072,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   ar: {
     'nav.library': 'المكتبة',
@@ -1272,6 +1277,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   es: {
     'nav.library': 'Biblioteca',
@@ -1476,6 +1482,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   fr: {
     'nav.library': 'Bibliothèque',
@@ -1680,6 +1687,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   de: {
     'nav.library': 'Bibliothek',
@@ -1884,6 +1892,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   it: {
     'nav.library': 'Biblioteca',
@@ -2088,6 +2097,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   pt: {
     'nav.library': 'Biblioteca',
@@ -2292,6 +2302,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   tr: {
     'nav.library': 'Kütüphane',
@@ -2496,6 +2507,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   ja: {
     'nav.library': 'ライブラリ',
@@ -2700,6 +2712,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   zh: {
     'nav.library': '图书馆',
@@ -2904,6 +2917,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
   uk: {
     'nav.library': 'Бібліотека',
@@ -3108,6 +3122,7 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
     'reader.sepia': 'Sepia mode',
     'reader.timeLeft': 'min left',
     'skipLink.main': 'Skip to main content',
+    'library.suggestedForYou': 'Suggested for you',
   },
 };
 
@@ -3271,6 +3286,7 @@ export async function translatePaperContent(content: string, targetLang: Support
 
   return out.join('\n\n');
 }
+
 
 
 

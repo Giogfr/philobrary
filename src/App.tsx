@@ -220,6 +220,171 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
           </div>
         )}
 
+        {/* Suggested for you - based on reading history tags */}
+        {continueReading.length > 0 && filteredPapers.length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-4 flex items-center gap-2">
+              <Sparkles size={14} className="text-accent-cyan" /> {t('library.suggestedForYou')}
+            </h2>
+            <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'grid grid-cols-1 gap-4'}>
+              {(() => {
+                // Get tags from user's reading history
+                const historyTagIds = new Set<string>();
+                readingHistory().forEach(h => {
+                  const p = processedPapers.find(p => p.id === h.id);
+                  p?.tags.forEach(tid => historyTagIds.add(tid));
+                });
+                // Score papers by tag overlap with history
+                return filteredPapers
+                  .filter(p => !continueReading.some(c => c.id === p.id))
+                  .map(p => {
+                    const overlap = p.tags.filter(tid => historyTagIds.has(tid)).length;
+                    return { paper: p, score: overlap + Math.random() * 0.1 };
+                  })
+                  .sort((a, b) => b.score - a.score)
+                  .slice(0, viewMode === 'grid' ? 6 : 4)
+                  .map(({ paper }) => paper);
+              })().map(paper => {
+                const paperTags = paper.tags.map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
+                const isSaved = bookmarkedIds.includes(paper.id);
+                const primaryTag = paperTags[0];
+                const displayTags = paperTags.slice(0, 3);
+                const tagColor = primaryTag?.color || '#4F46E5';
+                const tagBg = `${tagColor}15`;
+                const tagBorder = `${tagColor}30`;
+                const tagText = tagColor;
+                const excerpt = paper.metaDescription
+                  ? paper.metaDescription
+                  : htmlToText(paper.content).slice(0, viewMode === 'grid' ? 180 : 220);
+                const progressKey = `philobrary_progress_${paper.slug}`;
+                const savedProgress = typeof localStorage !== 'undefined' ? Number(localStorage.getItem(progressKey) || 0) : 0;
+                const hasProgress = savedProgress > 0 && savedProgress < 100;
+
+                if (viewMode === 'grid') {
+                  return (
+                    <article
+                      key={paper.id}
+                      onClick={() => handleReadPaper(paper)}
+                      className="group relative flex flex-col bg-bg-card border border-border-subtle rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-[0_20px_40px_-12px_rgba(79,70,229,0.15)] hover:-translate-y-1 hover:border-accent-indigo/30"
+                      style={{ '--tag-color': tagColor } as React.CSSProperties}
+                    >
+                      <div className="h-1.5 bg-[var(--tag-color)] w-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      <div className="p-5 pt-4 flex items-start justify-between gap-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          {displayTags.map(t => (
+                            <span key={t.id} className="inline-flex items-center px-2.5 py-1 text-xs font-semibold uppercase tracking-wider rounded-full border transition-all"
+                              style={{ backgroundColor: `${t.color}15`, borderColor: `${t.color}30`, color: t.color }}>
+                              {translatedTagName(t)}
+                            </span>
+                          ))}
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
+                          aria-label={t('reader.bookmark')}
+                          className={`flex-shrink-0 p-2 rounded-xl transition-all duration-200 ${isSaved ? 'text-accent-indigo bg-accent-indigo/10 scale-100' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'}`}
+                        >
+                          <Bookmark size={18} fill={isSaved ? "currentColor" : "none"} />
+                        </button>
+                      </div>
+                      <div className="flex-1 p-5 pt-2 flex flex-col">
+                        <h3 className="font-bold text-text-primary leading-tight mb-3 line-clamp-2 group-hover:text-accent-cyan transition-colors duration-200 text-lg md:text-xl">
+                          {translatedTitle(paper)}
+                        </h3>
+                        <p className="text-text-secondary leading-relaxed line-clamp-3 flex-1 text-sm mb-4">
+                          {excerpt}
+                        </p>
+                        {translatedFocusArea(paper) && (
+                          <span className="mb-4 inline-flex items-center px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/20 rounded-full">
+                            {translatedFocusArea(paper)}
+                          </span>
+                        )}
+                        {hasProgress && (
+                          <div className="mb-4 h-1.5 bg-bg-secondary rounded-full overflow-hidden" role="progressbar" aria-valuenow={savedProgress} aria-valuemin={0} aria-valuemax={100} aria-label={`Reading progress: ${savedProgress}%`}>
+                            <div className="h-full bg-[var(--tag-color)] rounded-full transition-all duration-500" style={{ width: `${savedProgress}%` }} />
+                          </div>
+                        )}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-border-subtle/50">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-accent-indigo to-accent-cyan flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                              {paper.author.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="font-medium text-text-secondary truncate max-w-[140px] sm:max-w-[200px]">{paper.author}</span>
+                          </div>
+                          <div className="flex items-center gap-4 text-[11px] font-medium text-text-muted">
+                            <span className="flex items-center gap-1" title="Views"><Eye size={11} /> {paper.views.toLocaleString()}</span>
+                            <span className="flex items-center gap-1" title="Saves"><Bookmark size={11} /> {(paper.savedCount || 0).toLocaleString()}</span>
+                            <span className="flex items-center gap-1"><Clock size={11} /> {paper.readingTimeMinutes} {t('paper.minRead')}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="absolute bottom-0 start-0 end-0 h-16 bg-gradient-to-t from-bg-card to-transparent pointer-events-none opacity-50 group-hover:opacity-0 transition-opacity" />
+                    </article>
+                  );
+                }
+                return (
+                  <article
+                    key={paper.id}
+                    onClick={() => handleReadPaper(paper)}
+                    className="group relative flex flex-col sm:flex-row sm:items-start gap-5 bg-bg-card border border-border-subtle rounded-2xl p-5 cursor-pointer transition-all duration-300 hover:shadow-xl hover:border-accent-indigo/30 hover:bg-bg-hover/50"
+                    style={{ '--tag-color': tagColor } as React.CSSProperties}
+                  >
+                    <div className="absolute top-0 bottom-0 start-0 w-1 bg-[var(--tag-color)] opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-s-2xl" />
+                    <div className="flex-1 min-w-0 p-1 pr-0">
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          {displayTags.map(t => (
+                            <span key={t.id} className="inline-flex items-center px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider rounded-full border transition-all"
+                              style={{ backgroundColor: `${t.color}15`, borderColor: `${t.color}30`, color: t.color }}>
+                              {translatedTagName(t)}
+                            </span>
+                          ))}
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
+                          aria-label={t('reader.bookmark')}
+                          className={`flex-shrink-0 p-2 rounded-xl transition-all duration-200 ${isSaved ? 'text-accent-indigo bg-accent-indigo/10' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'}`}
+                        >
+                          <Bookmark size={16} fill={isSaved ? "currentColor" : "none"} />
+                        </button>
+                      </div>
+                      <h3 className="font-bold text-text-primary leading-snug mb-2 line-clamp-2 group-hover:text-accent-cyan transition-colors duration-200 text-lg">
+                        {translatedTitle(paper)}
+                      </h3>
+                      <p className="text-text-secondary leading-relaxed line-clamp-2 hidden sm:block text-sm mb-3">
+                        {excerpt}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium text-text-muted">
+                        <div className="flex items-center gap-1">
+                          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-accent-indigo to-accent-cyan flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
+                            {paper.author.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-medium text-text-secondary truncate max-w-[160px]">{paper.author}</span>
+                        </div>
+                        {translatedFocusArea(paper) && (
+                          <span className="px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/20 rounded-full">
+                            {translatedFocusArea(paper)}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1"><Eye size={10} /> {paper.views.toLocaleString()}</span>
+                        <span className="flex items-center gap-1"><Bookmark size={10} /> {(paper.savedCount || 0).toLocaleString()}</span>
+                        <span className="flex items-center gap-1"><Clock size={10} /> {paper.readingTimeMinutes} {t('paper.minRead')}</span>
+                        {hasProgress && (
+                          <span className="flex items-center gap-1 text-accent-indigo">
+                            <div className="w-16 h-1.5 bg-bg-secondary rounded-full overflow-hidden">
+                              <div className="h-full bg-[var(--tag-color)] rounded-full" style={{ width: `${savedProgress}%` }} />
+                            </div>
+                            <span>{savedProgress}%</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col lg:flex-row gap-4 mb-8">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 start-0 flex items-center ps-4 text-text-muted"><Search size={20} /></div>

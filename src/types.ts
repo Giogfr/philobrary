@@ -29,6 +29,7 @@ export interface Paper {
   updatedAt: string;
   scheduledFor?: string;
   views: number;
+  savedCount?: number;
   wordCount: number;
   characterCount: number;
   readingTimeMinutes: number;

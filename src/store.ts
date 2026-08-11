@@ -254,12 +254,19 @@ const toggleBookmark = async (id: string) => {
     showToast('toast.signinRequired', 'info');
     return;
   }
-  const newBookmarks = state.bookmarkedIds.includes(id)
-    ? state.bookmarkedIds.filter(bid => bid !== id)
-    : [...state.bookmarkedIds, id];
+  const isSaving = !state.bookmarkedIds.includes(id);
+  const newBookmarks = isSaving
+    ? [...state.bookmarkedIds, id]
+    : state.bookmarkedIds.filter(bid => bid !== id);
   setState({ bookmarkedIds: newBookmarks });
   try {
     await update(ref(db, 'users/' + auth.currentUser.uid), { bookmarkedIds: newBookmarks });
+    if (isSaving) {
+      const paper = state.papers.find(p => p.id === id);
+      if (paper) {
+        await update(ref(db, 'papers/' + id), { savedCount: (paper.savedCount || 0) + 1 });
+      }
+    }
   } catch (e) {
     console.error(e);
     showToast('toast.saveFailed', 'error');
@@ -290,6 +297,7 @@ const cleanPaperData = (paper: Paper): any => {
   copyIfNotUndefined('updatedAt');
   copyIfNotUndefined('scheduledFor');
   copyIfNotUndefined('views');
+  copyIfNotUndefined('savedCount');
   copyIfNotUndefined('wordCount');
   copyIfNotUndefined('characterCount');
   copyIfNotUndefined('readingTimeMinutes');
@@ -312,12 +320,25 @@ const deletePaper = async (id: string) => {
   }
 };
 
+const VIEWED_KEY = 'philobrary_viewed_papers';
+
 const incrementViews = async (id: string) => {
   try {
     const paper = state.papers.find(p => p.id === id);
-    if (paper) {
-      await update(ref(db, 'papers/' + id), { views: (paper.views || 0) + 1 });
-    }
+    if (!paper) return;
+
+    // Count each unique device/visitor once per paper.
+    let viewed: string[] = [];
+    try {
+      viewed = JSON.parse(localStorage.getItem(VIEWED_KEY) || '[]');
+    } catch { /* ignore corrupted storage */ }
+    if (viewed.includes(id)) return;
+    viewed.push(id);
+    try {
+      localStorage.setItem(VIEWED_KEY, JSON.stringify(viewed));
+    } catch { /* storage may be full/unavailable; still count */ }
+
+    await update(ref(db, 'papers/' + id), { views: (paper.views || 0) + 1 });
   } catch (e) {
     console.error('Failed to increment views:', e);
   }

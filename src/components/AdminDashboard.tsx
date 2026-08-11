@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Paper, Tag, PaperStatus } from '../types';
-import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity } from 'lucide-react';
+import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark } from 'lucide-react';
 import { PaperEditor } from './PaperEditor';
 import { t } from '../i18n';
 import { useStore, PREMADE_TAGS } from '../store';
@@ -56,6 +56,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const missingPremade = PREMADE_TAGS.filter(t => !existingTagNames.has(t.name.toLowerCase()));
 
   const totalViews = papers.reduce((sum, p) => sum + p.views, 0);
+  const totalSaves = papers.reduce((sum, p) => sum + (p.savedCount || 0), 0);
   const publishedCount = papers.filter(p => p.status === 'published').length;
   const draftCount = papers.filter(p => p.status === 'draft').length;
   const scheduledCount = papers.filter(p => p.status === 'scheduled').length;
@@ -142,7 +143,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div>
                 <p className="text-sm font-medium text-text-secondary mb-1">{t('admin.metric.views')}</p>
                 <p className="text-3xl font-bold text-text-primary">{totalViews.toLocaleString()}</p>
-                <p className="text-xs text-text-muted mt-1">{papers.length > 0 ? Math.round(totalViews / papers.length).toLocaleString() : 0} {t('admin.metric.avgViews')}</p>
+                <p className="text-xs text-text-muted mt-1">{Math.round(totalViews / Math.max(1, papers.length)).toLocaleString()} {t('admin.metric.avgViews')}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-accent-cyan/10 text-accent-cyan flex items-center justify-center">
                 <Eye size={24} />
@@ -157,6 +158,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <div className="w-12 h-12 rounded-full bg-accent-indigo/10 text-accent-indigo flex items-center justify-center">
                 <Activity size={24} />
+              </div>
+            </div>
+
+            <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex items-center justify-between shadow-xl">
+              <div>
+                <p className="text-sm font-medium text-text-secondary mb-1">{t('admin.metric.saves')}</p>
+                <p className="text-3xl font-bold text-text-primary">{totalSaves.toLocaleString()}</p>
+                <p className="text-xs text-text-muted mt-1">{Math.round(totalSaves / Math.max(1, papers.length)).toLocaleString()} {t('admin.metric.avgSaves')}</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-accent-cyan/10 text-accent-cyan flex items-center justify-center">
+                <Bookmark size={24} />
               </div>
             </div>
           </div>
@@ -176,7 +188,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1 gap-2">
                           <span className="text-sm font-medium text-text-secondary truncate">{p.title}</span>
-                          <span className="text-xs text-text-muted shrink-0">{p.views.toLocaleString()} {t('admin.analytics.views')}</span>
+                          <span className="text-xs text-text-muted shrink-0 flex items-center gap-2">
+                            <span className="flex items-center"><Eye size={11} className="me-1" />{p.views.toLocaleString()}</span>
+                            <span className="flex items-center"><Bookmark size={11} className="me-1" />{(p.savedCount || 0).toLocaleString()}</span>
+                          </span>
                         </div>
                         <div className="h-2 bg-bg-secondary rounded-full overflow-hidden">
                           <div

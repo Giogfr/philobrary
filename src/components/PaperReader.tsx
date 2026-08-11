@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { Paper, Tag } from '../types';
-import { X, Link as LinkIcon, Check, Clock, Calendar, ChevronLeft, List, ExternalLink, Download, Bookmark, Quote, Activity, FileDown, History, Type, AlignLeft, Sparkles, Sun, Moon, Globe } from 'lucide-react';
+import { X, Link as LinkIcon, Check, Clock, Calendar, ChevronLeft, List, ExternalLink, Download, Bookmark, Quote, Activity, FileDown, History, Type, AlignLeft, Sparkles, Sun, Moon, Globe, Eye } from 'lucide-react';
 import { getRelativeTime } from '../utils';
 import { useStore, SupportedLanguage } from '../store';
 import { t, languageNames, languageShortNames } from '../i18n';
@@ -266,6 +266,10 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, isBookmar
                   {isMarkdown && (
                     <div className="flex items-center justify-end text-xs text-text-muted"><Activity size={12} className="me-1" /> {paper.wordCount.toLocaleString()} {t('reader.words')}</div>
                   )}
+                  <div className="flex items-center justify-end text-xs text-text-muted gap-3">
+                    <span className="flex items-center"><Eye size={12} className="me-1" /> {paper.views.toLocaleString()} {t('reader.views')}</span>
+                    <span className="flex items-center"><Bookmark size={12} className="me-1" /> {(paper.savedCount || 0).toLocaleString()}</span>
+                  </div>
                 </div>
               </div>
             </header>

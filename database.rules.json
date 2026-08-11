@@ -8,6 +8,9 @@
       "$paperId": {
         "views": {
           ".write": true
+        },
+        "savedCount": {
+          ".write": "auth != null"
         }
       }
     },

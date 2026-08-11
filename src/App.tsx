@@ -9,7 +9,7 @@ import { LanguageSelector } from './components/LanguageSelector';
 import { useStore, isAdminEmail } from './store';
 import { Paper, Tag } from './types';
 import { Flag } from './components/Flag';
-import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye } from 'lucide-react';
 import { t, languageShortNames } from './i18n';
 import { setSeo, resetSeo, stripMarkdown, BASE_URL } from './seo';
 import { htmlToText } from './utils';
@@ -234,8 +234,10 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                     <div className="flex items-center text-sm text-text-secondary">
                       <span className="truncate max-w-[140px] font-medium text-text-secondary">{paper.author}</span>
                     </div>
-                    <div className="flex items-center text-xs text-text-muted font-medium">
-                      {paper.readingTimeMinutes} {t('paper.minRead')}
+                    <div className="flex items-center text-xs text-text-muted font-medium gap-3">
+                      <span className="flex items-center gap-1"><Eye size={12} /> {paper.views.toLocaleString()}</span>
+                      <span className="flex items-center gap-1"><Bookmark size={12} /> {(paper.savedCount || 0).toLocaleString()}</span>
+                      <span>{paper.readingTimeMinutes} {t('paper.minRead')}</span>
                     </div>
                   </div>
                 </div>

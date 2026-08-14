@@ -12,6 +12,7 @@ import { t, languageShortNames } from './i18n';
 import { setSeo, resetSeo, stripMarkdown, BASE_URL, setHreflangAlternates, createBreadcrumbJsonLd, addJsonLd } from './seo';
 import { trackVisit } from './track';
 import { htmlToText, generateSlug } from './utils';
+import { LegalPage } from './components/LegalPages';
 
 // Route-level code splitting — admin + auth screens load on demand.
 const AdminLogin = lazy(() => import('./components/AdminLogin').then(m => ({ default: m.AdminLogin })));
@@ -1447,10 +1448,22 @@ export default function App() {
               )
             } />
             <Route path="/profile" element={<ProfileView />} />
+            <Route path="/tos" element={<LegalPage />} />
+            <Route path="/privacy" element={<LegalPage />} />
             <Route path="*" element={<NotFoundView />} />
           </Routes>
 </Suspense>
         </main>
+
+        <footer className="w-full border-t border-border-subtle mt-12">
+          <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-sm text-text-muted">© 2026 Philobrary · A curated library of philosophy essays by Gio</p>
+            <nav className="flex items-center gap-4 text-sm">
+              <Link to="/tos" className="text-text-secondary hover:text-text-primary transition-colors">Terms of Service</Link>
+              <Link to="/privacy" className="text-text-secondary hover:text-text-primary transition-colors">Privacy Policy</Link>
+            </nav>
+          </div>
+        </footer>
 
         <ToastContainer />
       {showLangSelector && <LanguageSelector onClose={() => setShowLangSelector(false)} />}

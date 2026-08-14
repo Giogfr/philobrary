@@ -53,19 +53,12 @@ export function LegalPage() {
           </Section>
 
           <Section title="Information We Collect">
-            <P>We collect two categories of information:</P>
+            <P>We collect the following information:</P>
             <ul className="space-y-2">
               <LI>
                 <strong className="text-text-primary">Account information.</strong> If you choose to sign in
                 (for example, to bookmark essays), we receive your email address and display name from your
                 sign-in provider (Google). Your bookmarked essays are stored and associated with your account.
-              </LI>
-              <LI>
-                <strong className="text-text-primary">Usage and analytics information.</strong> When you visit
-                the site, we automatically collect standard analytics data — your IP address, approximate
-                location (city and country), device type, browser and operating system, the page you arrived
-                from, and the pages you visit on the site. We use this to understand our audience, detect
-                problems, and improve the library.
               </LI>
             </ul>
           </Section>
@@ -73,7 +66,6 @@ export function LegalPage() {
           <Section title="How We Use Your Information">
             <ul className="space-y-2">
               <LI>To operate and personalize the site, including bookmarks, language preference, and reading history.</LI>
-              <LI>To understand how visitors use the site and to improve content and performance.</LI>
               <LI>To keep the site secure and to prevent abuse.</LI>
               <LI>To communicate with you if you contact us.</LI>
             </ul>
@@ -82,9 +74,8 @@ export function LegalPage() {
 
           <Section title="Cookies and Local Storage">
             <P>
-              We use your browser's local storage to remember your preferences (such as theme and language),
-              your bookmarked essays, and cached content translations. We may use cookies for essential
-              functionality and for advertising provided by third parties such as Google AdSense.
+              We use your browser's local storage to remember your preferences (such as theme and language)
+              and your bookmarked essays. We may use cookies for essential functionality.
             </P>
           </Section>
 
@@ -99,8 +90,8 @@ export function LegalPage() {
           <Section title="Third-Party Services">
             <P>
               We use third-party services that may process data on our behalf, including Google Firebase
-              (authentication and database), Google Fonts (typography), and providers used for analytics
-              and display advertising. These providers have their own privacy policies.
+              (authentication and database) and Google Fonts (typography). These providers have their own
+              privacy policies.
             </P>
           </Section>
 

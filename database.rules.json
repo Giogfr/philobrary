@@ -18,10 +18,6 @@
       ".read": true,
       ".write": "auth != null && (auth.token.email == 'idontsayidontsay@gmail.com' || auth.token.email == 'larpgio@gmail.com')"
     },
-    "visits": {
-      ".read": "auth != null && (auth.token.email == 'idontsayidontsay@gmail.com' || auth.token.email == 'larpgio@gmail.com')",
-      ".write": "newData.exists() || (auth != null && (auth.token.email == 'idontsayidontsay@gmail.com' || auth.token.email == 'larpgio@gmail.com'))"
-    },
     "users": {
       "$uid": {
         ".read": "auth != null && (auth.uid == $uid || auth.token.email == 'idontsayidontsay@gmail.com')",

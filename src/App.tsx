@@ -10,7 +10,6 @@ import { Flag } from './components/Flag';
 import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon, LayoutGrid, LayoutDashboard, List, ArrowUp, ArrowLeft, X, Sparkles, Clock, History } from 'lucide-react';
 import { t, languageShortNames } from './i18n';
 import { setSeo, resetSeo, stripMarkdown, BASE_URL, setHreflangAlternates, createBreadcrumbJsonLd, addJsonLd } from './seo';
-import { trackVisit } from './track';
 import { htmlToText, generateSlug } from './utils';
 import { LegalPage } from './components/LegalPages';
 import { ContactPage } from './components/ContactPage';
@@ -1342,12 +1341,6 @@ export default function App() {
       seedPremadeTags().catch(() => undefined);
     }
   }, [user.isAuthenticated, user.email, tags.length, seedPremadeTags]);
-
-  // Visitor analytics (IP / device / location). Owner visits are recorded too,
-  // flagged as `self` so they can be identified in the Visitors tab.
-  useEffect(() => {
-    trackVisit({ self: user.isAuthenticated && isAdminEmail(user.email) });
-  }, [user.isAuthenticated, user.email]);
 
   const now = Date.now();
   const processedPapers = papers.map(p => {

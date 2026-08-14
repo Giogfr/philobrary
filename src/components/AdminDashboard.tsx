@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Paper, Tag, PaperStatus } from '../types';
-import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown, MessageCircle, MonitorSmartphone, MapPin, Fingerprint, RefreshCw, ChevronRight, ShieldAlert } from 'lucide-react';
+import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown, MessageCircle, MonitorSmartphone, MapPin, Fingerprint, RefreshCw, ChevronRight, ShieldAlert, Loader2, ExternalLink } from 'lucide-react';
 import { PaperEditor } from './PaperEditor';
 import { t } from '../i18n';
 import { useStore, PREMADE_TAGS } from '../store';
@@ -1135,8 +1135,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     {detail('Domain', data.connectionDomain)}
                                     {detail('Timezone', data.timezoneId)}
                                     {detail('UTC', data.timezoneUtc)}
+                                    {detail('DST active', data.timezoneDst)}
                                     {detail('Local time', data.currentTime)}
                                     {detail('Currency', data.currencyCode ? `${data.currencySymbol || ''} ${data.currencyCode} (${data.currency})` : undefined)}
+                                    {detail('Exchange rate', data.exchangeRate != null ? `1 USD = ${data.exchangeRate} ${data.currencyCode || ''}` : undefined)}
+                                    {detail('Neighboring countries', Array.isArray(data.borders) && data.borders.length ? data.borders.join(', ') : undefined)}
                                     {detail('Browser', data.browser && data.browserVersion ? `${data.browser} ${data.browserVersion}` : data.browser)}
                                     {detail('OS', data.os && data.osVersion ? `${data.os} ${data.osVersion}` : data.os)}
                                     {detail('Device', data.device)}
@@ -1151,6 +1154,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     {detail('Hosting', data.hosting)}
                                     {detail('User agent', data.ua)}
                                   </div>
+                                  <VisitorDeepInfo ip={data.ip} lat={data.lat} lon={data.lon} />
                                 </td>
                               </tr>
                             )}
@@ -1178,3 +1182,145 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     </div>
   );
 };
+
+function VisitorDeepInfo({ ip, lat, lon }: { ip?: string; lat?: number; lon?: number }) {
+  const [ptr, setPtr] = useState<string | null>(null);
+  const [rdap, setRdap] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!ip) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setPtr(null);
+    setRdap(null);
+
+    const ptrJob = (async () => {
+      try {
+        const reverse = ip.split('.').reverse().join('.') + '.in-addr.arpa';
+        const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(reverse)}&type=PTR`);
+        if (res.ok) {
+          const j = await res.json();
+          const a = j?.Answer;
+          if (Array.isArray(a) && a.length && a[0].data) setPtr(String(a[0].data).replace(/\.$/, ''));
+        }
+      } catch { /* PTR unavailable */ }
+    })();
+
+    const rdapJob = (async () => {
+      try {
+        const res = await fetch(`https://rdap.org/ip/${ip}`);
+        if (res.ok) {
+          const j = await res.json();
+          if (j && !j.errorCode) setRdap(j);
+        }
+      } catch { /* RDAP unavailable */ }
+    })();
+
+    Promise.all([ptrJob, rdapJob]).then(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [ip]);
+
+  const rdapRow = (label: string, value?: string | number | null) =>
+    value === undefined || value === null || value === '' ? null : (
+      <div>
+        <div className="text-[10px] uppercase tracking-wide text-text-muted">{label}</div>
+        <div className="text-text-secondary font-medium break-all">{String(value)}</div>
+      </div>
+    );
+
+  const abuseEmail = (() => {
+    const entities = rdap?.entities;
+    if (!Array.isArray(entities)) return null;
+    for (const e of entities) {
+      if (e?.roles && e.roles.includes('abuse')) {
+        const v = e.vcardArray?.[1] || [];
+        for (const line of v) {
+          if (line[0] === 'email' && line[3]) return String(line[3]);
+        }
+      }
+    }
+    for (const e of entities) {
+      const v = e?.vcardArray?.[1] || [];
+      for (const line of v) {
+        if (line[0] === 'email' && line[3]) return String(line[3]);
+      }
+    }
+    return null;
+  })();
+
+  const registrantName = (() => {
+    const entities = rdap?.entities;
+    if (!Array.isArray(entities)) return null;
+    for (const e of entities) {
+      const v = e?.vcardArray?.[1] || [];
+      for (const line of v) {
+        if (line[0] === 'fn' && line[3]) return String(line[3]);
+      }
+    }
+    return null;
+  })();
+
+  const remarks = (() => {
+    const r = rdap?.remarks;
+    if (!Array.isArray(r)) return null;
+    return r.map((m: any) => (m?.description || []).join(' ')).filter(Boolean).join(' · ') || null;
+  })();
+
+  return (
+    <div className="mt-6 border-t border-border-subtle pt-5">
+      <h4 className="text-sm font-semibold text-text-primary mb-1 flex items-center gap-2">
+        <ShieldAlert size={15} className="text-accent-cyan" /> Deep lookup — hostname, WHOIS & network info
+      </h4>
+      <p className="text-[11px] text-text-muted mb-4">Live lookup of this IP via reverse-DNS (Google DoH) and RDAP registry data.</p>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-text-muted text-xs py-4">
+          <Loader2 size={15} className="animate-spin" /> Looking up {ip}…
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4 text-xs">
+          {rdapRow('Hostname (PTR)', ptr || 'not published')}
+          {rdapRow('Network name', rdap?.name)}
+          {rdapRow('IP range', rdap?.startAddress && rdap?.endAddress ? `${rdap.startAddress} – ${rdap.endAddress}` : undefined)}
+          {rdapRow('Registry', rdap?.handle?.split('/')[0])}
+          {rdapRow('Handle', rdap?.handle)}
+          {rdapRow('Network type', rdap?.type)}
+          {rdapRow('Registry country', rdap?.country)}
+          {rdapRow('Parent network', rdap?.parentHandle)}
+          {rdapRow('Registrant / org', registrantName)}
+          {abuseEmail && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-text-muted">Abuse contact</div>
+              <a href={`mailto:${abuseEmail}`} className="text-accent-cyan font-medium hover:underline break-all">{abuseEmail}</a>
+            </div>
+          )}
+          {rdapRow('Registry remarks', remarks)}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2 mt-4">
+        {ip && (
+          <a href={`https://ipinfo.io/${ip}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-bg-secondary text-text-secondary border border-border-subtle rounded-full hover:text-accent-indigo hover:border-accent-indigo/40 transition-colors">
+            ipinfo.io <ExternalLink size={12} />
+          </a>
+        )}
+        {ip && (
+          <a href={`https://rdap.org/ip/${ip}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-bg-secondary text-text-secondary border border-border-subtle rounded-full hover:text-accent-indigo hover:border-accent-indigo/40 transition-colors">
+            WHOIS / RDAP <ExternalLink size={12} />
+          </a>
+        )}
+        {lat != null && lon != null && (
+          <a href={`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-bg-secondary text-text-secondary border border-border-subtle rounded-full hover:text-accent-indigo hover:border-accent-indigo/40 transition-colors">
+            Open in Google Maps <ExternalLink size={12} />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}

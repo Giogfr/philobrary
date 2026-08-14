@@ -78,10 +78,14 @@ export interface Visit {
   timezoneAbbr?: string;
   timezoneUtc?: string;
   timezoneOffset?: number;
+  timezoneDst?: boolean;
   currentTime?: string;
   currency?: string;
   currencyCode?: string;
   currencySymbol?: string;
+  currencyPlural?: string;
+  exchangeRate?: number;
+  borders?: string[];
   anonymous?: boolean;
   proxy?: boolean;
   vpn?: boolean;

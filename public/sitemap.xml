@@ -21,6 +21,11 @@
     <priority>0.3</priority>
   </url>
   <url>
+    <loc>https://philobrary.vercel.app/request</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
     <loc>https://philobrary.vercel.app/p/the-historical-reality-of-aisha-s-age</loc>
     <lastmod>2026-08-12T07:13:32.168Z</lastmod>
     <changefreq>weekly</changefreq>

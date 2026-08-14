@@ -48,7 +48,7 @@ for (; i < lines.length; i++) {
     if (j >= lines.length) throw new Error(`Could not find closing brace for '${code}' block`);
     const existing = new Set();
     for (const l of block) {
-      const m = l.match(/^    '([^']+)':/);
+      const m = l.match(/^ {2,}'([^']+)':/);
       if (m) existing.add(m[1]);
     }
     const missing = [...enVals.keys()].filter(k => !existing.has(k)).sort();

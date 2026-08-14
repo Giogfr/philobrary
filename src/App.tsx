@@ -7,12 +7,13 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage
 import { useStore, isAdminEmail } from './store';
 import { Paper, Tag } from './types';
 import { Flag } from './components/Flag';
-import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon, LayoutGrid, LayoutDashboard, List, ArrowUp, ArrowLeft, X, Sparkles, Clock, History } from 'lucide-react';
+import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon, LayoutGrid, LayoutDashboard, List, ArrowUp, ArrowLeft, X, Sparkles, Clock, History, PenLine } from 'lucide-react';
 import { t, languageShortNames } from './i18n';
 import { setSeo, resetSeo, stripMarkdown, BASE_URL, setHreflangAlternates, createBreadcrumbJsonLd, addJsonLd } from './seo';
 import { htmlToText, generateSlug } from './utils';
 import { LegalPage } from './components/LegalPages';
 import { ContactPage } from './components/ContactPage';
+import { RequestPaperPage } from './components/RequestPaperPage';
 
 // Route-level code splitting — admin + auth screens load on demand.
 const AdminLogin = lazy(() => import('./components/AdminLogin').then(m => ({ default: m.AdminLogin })));
@@ -315,6 +316,14 @@ return (
                     </div>
                   ))}
                 </dl>
+
+                {/* Request a paper CTA */}
+                <Link
+                  to="/request"
+                  className="mt-8 inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-full border border-accent-indigo/40 text-accent-indigo bg-accent-indigo/5 hover:bg-accent-indigo/15 hover:border-accent-indigo transition-colors"
+                >
+                  <PenLine size={16} /> {t('hero.requestCta')}
+                </Link>
 
                 {/* Popular topics */}
                 {topTags.length > 0 && (
@@ -1375,6 +1384,11 @@ export default function App() {
               <span className="hidden md:inline">{t('nav.saved')}</span>
               <span className="md:hidden">{t('nav.saved')}</span>
             </Link>
+            <Link to="/request" className={`flex items-center px-3 md:px-4 py-2 text-sm font-medium rounded-full transition-colors shrink-0 ${location.pathname === '/request' ? 'bg-bg-card card-shadow text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
+              <PenLine size={16} className="md:hidden me-1.5" />
+              <span className="hidden md:inline">{t('nav.request')}</span>
+              <span className="md:hidden">{t('nav.request')}</span>
+            </Link>
 
             <button
               onClick={toggleTheme}
@@ -1446,6 +1460,7 @@ export default function App() {
             <Route path="/tos" element={<LegalPage />} />
             <Route path="/privacy" element={<LegalPage />} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/request" element={<RequestPaperPage />} />
             <Route path="*" element={<NotFoundView />} />
           </Routes>
 </Suspense>
@@ -1456,6 +1471,7 @@ export default function App() {
             <p className="text-sm text-text-muted">© 2026 Philobrary · A curated library of philosophy essays by Gio</p>
             <nav className="flex items-center gap-4 text-sm">
               <Link to="/contact" className="text-text-secondary hover:text-text-primary transition-colors">Contact</Link>
+              <Link to="/request" className="text-text-secondary hover:text-text-primary transition-colors">Request a Paper</Link>
               <Link to="/tos" className="text-text-secondary hover:text-text-primary transition-colors">Terms of Service</Link>
               <Link to="/privacy" className="text-text-secondary hover:text-text-primary transition-colors">Privacy Policy</Link>
             </nav>

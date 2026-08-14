@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Paper, Tag, PaperStatus } from '../types';
-import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown, MessageCircle } from 'lucide-react';
+import { Paper, Tag, PaperStatus, PaperRequest, RequestStatus } from '../types';
+import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown, MessageCircle, Inbox } from 'lucide-react';
 import { PaperEditor } from './PaperEditor';
 import { t } from '../i18n';
 import { useStore, PREMADE_TAGS } from '../store';
-import { ref, set } from 'firebase/database';
+import { ref, set, remove, onValue } from 'firebase/database';
 
 interface AdminDashboardProps {
   papers: Paper[];
@@ -30,10 +30,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const { setPaperStatus, showToast, db } = useStore();
   const [editingPaper, setEditingPaper] = useState<Paper | undefined>(undefined);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'papers' | 'analytics' | 'tags' | 'featured' | 'messages'>('papers');
+  const [activeTab, setActiveTab] = useState<'papers' | 'analytics' | 'tags' | 'featured' | 'messages' | 'requests'>('papers');
   
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#818CF8');
+
+  const [requests, setRequests] = useState<{ key: string; data: PaperRequest }[]>([]);
+  const [requestFilter, setRequestFilter] = useState<'all' | RequestStatus>('all');
+  const [newPaperDraft, setNewPaperDraft] = useState<{ title?: string } | null>(null);
 
   const [tableSearch, setTableSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | PaperStatus>('all');
@@ -64,6 +68,51 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       showToast('toast.saveFailed', 'error');
     }
   };
+
+  useEffect(() => {
+    const reqRef = ref(db, 'requests');
+    const off = onValue(reqRef, (snap) => {
+      const data = snap.val();
+      if (!data || typeof data !== 'object') {
+        setRequests([]);
+        return;
+      }
+      setRequests(
+        Object.keys(data)
+          .map((key) => ({ key, data: data[key] as PaperRequest }))
+          .sort((a, b) => (b.data.at || 0) - (a.data.at || 0))
+      );
+    }, (err) => {
+      console.error('Requests listener error:', err);
+      setRequests([]);
+    });
+    return off;
+  }, [db]);
+
+  const setRequestStatus = (key: string, status: RequestStatus) => {
+    set(ref(db, 'requests/' + key + '/status'), status).catch(() => {
+      showToast('toast.saveFailed', 'error');
+    });
+  };
+
+  const startPaperFromRequest = (topic: string) => {
+    setNewPaperDraft({ title: topic });
+    setEditingPaper(undefined);
+    setIsEditorOpen(true);
+    setActiveTab('papers');
+  };
+
+  const deleteRequest = (key: string) => {
+    if (!window.confirm(t('admin.requests.deleteConfirm'))) return;
+    remove(ref(db, 'requests/' + key)).catch(() => {
+      showToast('toast.saveFailed', 'error');
+    });
+  };
+
+  const newRequestCount = requests.filter(r => r.data.status === 'new').length;
+  const filteredRequests = requestFilter === 'all'
+    ? requests
+    : requests.filter(r => r.data.status === requestFilter);
   
   const featuredPapers = papers
     .filter(p => p.featuredOrder !== undefined && p.featuredOrder > 0)
@@ -239,9 +288,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {isEditorOpen && (
         <PaperEditor 
           paper={editingPaper} 
+          initialTitle={newPaperDraft?.title}
           availableTags={tags}
           onSave={handleSave} 
-          onClose={() => setIsEditorOpen(false)} 
+          onClose={() => { setIsEditorOpen(false); setNewPaperDraft(null); }} 
         />
       )}
 
@@ -282,6 +332,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 <button onClick={() => setActiveTab('messages')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'messages' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
               <MessageCircle size={16} className="me-2" /> {t('admin.messages')}
             </button>
+        <button onClick={() => setActiveTab('requests')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'requests' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
+          <Inbox size={16} className="me-2" /> {t('admin.tab.requests')}
+          {newRequestCount > 0 && (
+            <span className="ms-2 px-2 py-0.5 text-[10px] font-bold bg-accent-cyan/20 text-accent-cyan rounded-full">{newRequestCount}</span>
+          )}
+        </button>
       </div>
 
       {activeTab === 'analytics' && (
@@ -510,6 +566,93 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       )}
+
+    {activeTab === 'requests' && (
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-bg-card border border-border-subtle p-4 rounded-3xl shadow-lg">
+          <div className="flex items-center gap-3">
+            <Inbox size={18} className="text-accent-cyan" />
+            <h2 className="text-lg font-bold text-text-primary">{t('admin.tab.requests')}</h2>
+            <span className="text-sm text-text-muted">({filteredRequests.length})</span>
+          </div>
+          <select
+            value={requestFilter}
+            onChange={(e) => setRequestFilter(e.target.value as 'all' | RequestStatus)}
+            className="px-4 py-2 bg-bg-secondary border border-border-subtle text-text-primary text-sm rounded-xl focus:outline-none"
+          >
+            <option value="all">{t('admin.filterAll')}</option>
+            <option value="new">{t('admin.requests.new')}</option>
+            <option value="reviewing">{t('admin.requests.reviewing')}</option>
+            <option value="accepted">{t('admin.requests.accepted')}</option>
+            <option value="declined">{t('admin.requests.declined')}</option>
+            <option value="done">{t('admin.requests.done')}</option>
+          </select>
+        </div>
+
+        {filteredRequests.length === 0 ? (
+          <div className="bg-bg-card border border-border-subtle rounded-3xl p-12 text-center shadow-xl">
+            <Inbox size={40} className="mx-auto text-text-muted/40 mb-4" />
+            <p className="text-text-primary font-semibold">{t('admin.requests.empty')}</p>
+            <p className="text-text-muted text-sm mt-1">{t('admin.requests.emptyHint')}</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredRequests.map(({ key, data }) => (
+              <div key={key} className="bg-bg-card border border-border-subtle rounded-3xl p-5 shadow-xl">
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <h3 className="font-bold text-text-primary">{data.topic}</h3>
+                      {data.status === 'new' && (
+                        <span className="px-2 py-0.5 text-[10px] font-bold bg-accent-cyan/20 text-accent-cyan rounded-full">{t('admin.requests.new')}</span>
+                      )}
+                    </div>
+                    {data.details && (
+                      <p className="text-text-secondary text-sm leading-relaxed">{data.details}</p>
+                    )}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted mt-3">
+                      <span className="flex items-center gap-1"><Clock size={12} /> {data.at ? new Date(data.at).toLocaleString() : ''}</span>
+                      {(data.name || data.email) && (
+                        <span>{data.name || ''}{data.name && data.email ? ' · ' : ''}{data.email ? `<${data.email}>` : ''}</span>
+                      )}
+                      {data.locale && <span>· {data.locale}</span>}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
+                    <select
+                      value={data.status}
+                      onChange={(e) => setRequestStatus(key, e.target.value as RequestStatus)}
+                      className="px-3 py-1.5 bg-bg-secondary border border-border-subtle text-text-primary text-sm rounded-xl focus:outline-none"
+                    >
+                      <option value="new">{t('admin.requests.new')}</option>
+                      <option value="reviewing">{t('admin.requests.reviewing')}</option>
+                      <option value="accepted">{t('admin.requests.accepted')}</option>
+                      <option value="declined">{t('admin.requests.declined')}</option>
+                      <option value="done">{t('admin.requests.done')}</option>
+                    </select>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startPaperFromRequest(data.topic)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-text-primary text-bg-primary rounded-full hover:opacity-90 transition-opacity"
+                      >
+                        <Plus size={13} /> {t('admin.requests.create')}
+                      </button>
+                      <button
+                        onClick={() => deleteRequest(key)}
+                        className="p-2 text-danger/80 hover:bg-danger/10 hover:text-danger rounded-full transition-colors"
+                        title={t('admin.delete')}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
 
     {activeTab === 'papers' && (
         <div className="space-y-4">

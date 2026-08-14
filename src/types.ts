@@ -50,4 +50,16 @@ export interface User {
   uid?: string;
 }
 
+export type RequestStatus = 'new' | 'reviewing' | 'accepted' | 'declined' | 'done';
+
+export interface PaperRequest {
+  topic: string;
+  details?: string;
+  name?: string;
+  email?: string;
+  locale?: string;
+  status: RequestStatus;
+  at: number;
+}
+
 

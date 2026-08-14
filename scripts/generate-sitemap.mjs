@@ -38,7 +38,7 @@ async function main() {
     <priority>1.0</priority>
   </url>`);
 
-  for (const staticPath of ['/tos', '/privacy', '/contact']) {
+  for (const staticPath of ['/tos', '/privacy', '/contact', '/request']) {
     lines.push(`  <url>
     <loc>${BASE}${staticPath}</loc>
     <changefreq>yearly</changefreq>

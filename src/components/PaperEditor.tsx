@@ -68,14 +68,15 @@ function buildSeoSuggestions(title: string, author: string, focusArea: string, c
 
 interface PaperEditorProps {
   paper?: Paper;
+  initialTitle?: string;
   availableTags: Tag[];
   onSave: (paper: Paper) => void;
   onClose: () => void;
 }
 
-export const PaperEditor: React.FC<PaperEditorProps> = ({ paper, availableTags, onSave, onClose }) => {
+export const PaperEditor: React.FC<PaperEditorProps> = ({ paper, initialTitle, availableTags, onSave, onClose }) => {
   const { user } = useStore();
-  const [title, setTitle] = useState(paper?.title || '');
+  const [title, setTitle] = useState(initialTitle || paper?.title || '');
   const [author, setAuthor] = useState(paper?.author || user.displayName || 'Sheikh Gio');
   const [focusArea, setFocusArea] = useState(paper?.focusArea || '');
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(paper?.tags || []);

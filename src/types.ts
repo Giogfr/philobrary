@@ -50,3 +50,31 @@ export interface User {
   uid?: string;
 }
 
+export interface Visit {
+  at?: number;
+  t?: number;
+  ip?: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  countryCode?: string;
+  lat?: number;
+  lon?: number;
+  isp?: string;
+  org?: string;
+  asn?: string;
+  timezone?: string;
+  ua?: string;
+  browser?: string;
+  browserVersion?: string;
+  os?: string;
+  osVersion?: string;
+  device?: string;
+  screen?: string;
+  lang?: string;
+  referrer?: string;
+  path?: string;
+  campaign?: string;
+}
+
+

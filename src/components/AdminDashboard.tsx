@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Paper, Tag, PaperStatus } from '../types';
-import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown, MessageCircle } from 'lucide-react';
+import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown, MessageCircle, MonitorSmartphone, MapPin, Fingerprint } from 'lucide-react';
 import { PaperEditor } from './PaperEditor';
 import { t } from '../i18n';
 import { useStore, PREMADE_TAGS } from '../store';
-import { ref, set } from 'firebase/database';
+import { ref, set, onValue, remove } from 'firebase/database';
+import { Visit } from '../types';
 
 interface AdminDashboardProps {
   papers: Paper[];
@@ -30,7 +31,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const { setPaperStatus, showToast, db } = useStore();
   const [editingPaper, setEditingPaper] = useState<Paper | undefined>(undefined);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'papers' | 'analytics' | 'tags' | 'featured' | 'messages'>('papers');
+  const [activeTab, setActiveTab] = useState<'papers' | 'analytics' | 'tags' | 'featured' | 'messages' | 'visitors'>('papers');
   
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#818CF8');
@@ -42,6 +43,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [sendMessageSubject, setSendMessageSubject] = useState('');
   const [sendMessageBody, setSendMessageBody] = useState('');
   const [recipients, setRecipients] = useState<'all' | 'selected'>('all');
+
+  const [visits, setVisits] = useState<{ key: string; data: Visit }[]>([]);
+  const [visitorSearch, setVisitorSearch] = useState('');
+
+  useEffect(() => {
+    const visitRef = ref(db, 'visits');
+    const off = onValue(visitRef, (snap) => {
+      const data = snap.val();
+      if (!data || typeof data !== 'object') {
+        setVisits([]);
+        return;
+      }
+      setVisits(Object.keys(data).map((key) => ({ key, data: data[key] || {} })));
+    }, (err) => {
+      console.error('Visits listener error:', err);
+      setVisits([]);
+    });
+    return off;
+  }, [db]);
 
   const sendMessage = async () => {
     const subject = sendMessageSubject.trim();
@@ -282,6 +302,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 <button onClick={() => setActiveTab('messages')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'messages' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
               <MessageCircle size={16} className="me-2" /> {t('admin.messages')}
             </button>
+        <button onClick={() => setActiveTab('visitors')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'visitors' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
+          <MonitorSmartphone size={16} className="me-2" /> Visitors
+        </button>
       </div>
 
       {activeTab === 'analytics' && (
@@ -775,6 +798,172 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {activeTab === 'visitors' && (() => {
+        const flagEmoji = (cc?: string) =>
+          cc && cc.length === 2
+            ? String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 127397 + c.charCodeAt(0)))
+            : '🌐';
+        const sorted = [...visits].sort((a, b) => {
+          const ta = (a.data.at ?? a.data.t ?? 0) as number;
+          const tb = (b.data.at ?? b.data.t ?? 0) as number;
+          return tb - ta;
+        });
+        const q = visitorSearch.trim().toLowerCase();
+        const filtered = q
+          ? sorted.filter(({ data }) => [data.ip, data.city, data.region, data.country, data.isp, data.org, data.referrer, data.path, data.campaign, data.browser, data.os]
+              .some((v) => String(v || '').toLowerCase().includes(q)))
+          : sorted;
+        const shown = filtered.slice(0, 250);
+        const uniqueIps = new Set(visits.map((v) => v.data.ip).filter(Boolean));
+        const countryCounts = new Map<string, number>();
+        visits.forEach((v) => {
+          const c = v.data.country || 'Unknown';
+          countryCounts.set(c, (countryCounts.get(c) || 0) + 1);
+        });
+        const topCountry = [...countryCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+
+        const copyText = async (text: string) => {
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch {
+            /* clipboard may be unavailable */
+          }
+        };
+
+        return (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-bg-card border border-border-subtle p-4 rounded-3xl shadow-lg">
+              <div className="relative flex-1">
+                <Search size={18} className="absolute start-4 top-1/2 -translate-y-1/2 text-text-muted" />
+                <input
+                  type="text"
+                  value={visitorSearch}
+                  onChange={(e) => setVisitorSearch(e.target.value)}
+                  placeholder="Search IP, location, ISP, referrer, path..."
+                  className="w-full ps-11 pe-4 py-2.5 bg-bg-secondary border border-border-subtle text-text-primary rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-indigo/50"
+                />
+                {visitorSearch && (
+                  <button onClick={() => setVisitorSearch('')} className="absolute end-3 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-primary">
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-text-muted font-mono px-2">{filtered.length} / {visits.length}</span>
+                <button
+                  onClick={() => window.confirm('Delete ALL visit logs? This cannot be undone.') && remove(ref(db, 'visits'))}
+                  className="px-3 py-2 text-xs font-medium bg-danger/20 text-danger border border-danger/30 rounded-full hover:bg-danger/30 transition-colors"
+                >
+                  Clear all
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-5 bg-bg-card border border-border-subtle rounded-3xl shadow-xl">
+                <p className="text-xs font-medium text-text-secondary mb-1">Total visits</p>
+                <p className="text-2xl font-bold text-text-primary">{visits.length.toLocaleString()}</p>
+              </div>
+              <div className="p-5 bg-bg-card border border-border-subtle rounded-3xl shadow-xl">
+                <p className="text-xs font-medium text-text-secondary mb-1">Unique IPs</p>
+                <p className="text-2xl font-bold text-text-primary">{uniqueIps.size.toLocaleString()}</p>
+              </div>
+              <div className="p-5 bg-bg-card border border-border-subtle rounded-3xl shadow-xl">
+                <p className="text-xs font-medium text-text-secondary mb-1">Countries</p>
+                <p className="text-2xl font-bold text-text-primary">{countryCounts.size}</p>
+              </div>
+              <div className="p-5 bg-bg-card border border-border-subtle rounded-3xl shadow-xl">
+                <p className="text-xs font-medium text-text-secondary mb-1">Top country</p>
+                <p className="text-2xl font-bold text-text-primary truncate" title={topCountry ? `${topCountry[0]} (${topCountry[1]})` : ''}>
+                  {flagEmoji(visits.find((v) => v.data.country === topCountry?.[0])?.data.countryCode)} {topCountry ? `${topCountry[0]} · ${topCountry[1]}` : '—'}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-bg-card border border-border-subtle rounded-3xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-start text-sm whitespace-nowrap">
+                  <thead className="bg-bg-secondary text-text-secondary">
+                    <tr>
+                      <th className="px-4 py-4 font-medium text-start"><Clock size={13} className="inline me-1" />Time</th>
+                      <th className="px-4 py-4 font-medium text-start"><Fingerprint size={13} className="inline me-1" />IP</th>
+                      <th className="px-4 py-4 font-medium text-start"><MapPin size={13} className="inline me-1" />Location</th>
+                      <th className="px-4 py-4 font-medium text-start"><MonitorSmartphone size={13} className="inline me-1" />Device</th>
+                      <th className="px-4 py-4 font-medium text-start">Source</th>
+                      <th className="px-4 py-4 font-medium text-end">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-subtle">
+                    {shown.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-16 text-center">
+                          <MonitorSmartphone size={48} className="mx-auto text-text-muted mb-4" />
+                          <h3 className="text-xl font-medium text-text-primary mb-2">No visits recorded</h3>
+                          <p className="text-text-muted">Visitors will appear here after the tracking rules are deployed.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      shown.map(({ key, data }) => (
+                        <tr key={key} className="hover:bg-bg-secondary/50 transition-colors align-top">
+                          <td className="px-4 py-4 text-text-muted text-xs">
+                            <div>{new Date((data.at ?? data.t ?? 0) as number).toLocaleString()}</div>
+                            {data.campaign && <div className="text-accent-cyan mt-0.5">via {data.campaign}</div>}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs text-text-secondary">{data.ip || '—'}</span>
+                              {data.ip && (
+                                <button onClick={() => copyText(data.ip)} title="Copy IP" className="p-1 text-text-muted hover:text-accent-cyan hover:bg-accent-cyan/10 rounded-md transition-colors">
+                                  <Copy size={12} />
+                                </button>
+                              )}
+                            </div>
+                            {data.isp && <div className="text-[11px] text-text-muted mt-0.5 truncate max-w-[200px]">{data.isp}</div>}
+                            {data.org && data.org !== data.isp && <div className="text-[11px] text-text-muted truncate max-w-[200px]">{data.org}</div>}
+                          </td>
+                          <td className="px-4 py-4 text-text-secondary text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span>{flagEmoji(data.countryCode)}</span>
+                              <span className="font-medium">{data.country || 'Unknown'}</span>
+                            </div>
+                            {data.city && <div className="text-text-muted mt-0.5">{data.city}{data.region && `, ${data.region}`}</div>}
+                            {data.timezone && <div className="text-text-muted mt-0.5">tz {data.timezone}</div>}
+                          </td>
+                          <td className="px-4 py-4 text-xs text-text-secondary">
+                            <div>{data.browser || 'Unknown'}{data.browserVersion ? ` ${data.browserVersion}` : ''}</div>
+                            <div className="text-text-muted mt-0.5">{data.os || ''}{data.device ? ` · ${data.device}` : ''}</div>
+                            {data.screen && <div className="text-text-muted mt-0.5">{data.screen}{data.lang ? ` · ${data.lang}` : ''}</div>}
+                          </td>
+                          <td className="px-4 py-4 text-xs text-text-secondary max-w-[240px]">
+                            {data.path && <div className="font-mono truncate" title={data.path}>{data.path}</div>}
+                            {data.referrer ? (
+                              <div className="text-text-muted mt-0.5 truncate" title={data.referrer}>
+                                ref {(() => { try { return new URL(data.referrer).host; } catch { return data.referrer; } })()}
+                              </div>
+                            ) : (
+                              <div className="text-text-muted mt-0.5">direct</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 text-end">
+                            <button
+                              onClick={() => window.confirm('Delete this visit log?') && remove(ref(db, 'visits/' + key))}
+                              title="Delete visit"
+                              className="p-2 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-full transition-colors"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

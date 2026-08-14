@@ -4,10 +4,16 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.tsx';
 import './index.css';
 
-createRoot(document.getElementById('root')!).render(
+const rootEl = document.getElementById('root')!;
+
+createRoot(rootEl).render(
   <StrictMode>
     <BrowserRouter>
       <App />
     </BrowserRouter>
   </StrictMode>,
 );
+
+requestAnimationFrame(() => requestAnimationFrame(() => {
+  rootEl.classList.add('app-ready');
+}));

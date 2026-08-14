@@ -83,9 +83,14 @@ export const PaperEditor: React.FC<PaperEditorProps> = ({ paper, availableTags, 
   const [content, setContent] = useState(paper?.content || '');
   const [googleDocUrl, setGoogleDocUrl] = useState(paper?.googleDocUrl || '');
   const [status, setStatus] = useState<PaperStatus>(paper?.status || 'draft');
-  const [scheduledFor, setScheduledFor] = useState<string>(
-    paper?.scheduledFor ? new Date(paper.scheduledFor).toISOString().slice(0, 16) : ''
-  );
+  const [scheduledFor, setScheduledFor] = useState<string>(() => {
+    if (!paper?.scheduledFor) return '';
+    const d = new Date(paper.scheduledFor);
+    if (isNaN(d.getTime())) return '';
+    // datetime-local expects local time — build it from the local components.
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
   const [metaDescription, setMetaDescription] = useState(paper?.metaDescription || '');
   const [keywords, setKeywords] = useState(paper?.keywords || '');
   const [ogImage, setOgImage] = useState(paper?.ogImage || '');

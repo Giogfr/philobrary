@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Link } from 'react-router-dom';
-import { updateProfile } from 'firebase/auth';
 import { auth } from './firebase';
+import { ref, set, onValue } from 'firebase/database';
+import { db, storage } from './firebase';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useStore, isAdminEmail } from './store';
 import { Paper, Tag } from './types';
 import { Flag } from './components/Flag';
-import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon, LayoutGrid, LayoutDashboard, List, ArrowUp, ArrowLeft, X, Sparkles, Clock } from 'lucide-react';
+import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon, LayoutGrid, LayoutDashboard, List, ArrowUp, ArrowLeft, X, Sparkles, Clock, History } from 'lucide-react';
 import { t, languageShortNames } from './i18n';
 import { setSeo, resetSeo, stripMarkdown, BASE_URL, setHreflangAlternates, createBreadcrumbJsonLd, addJsonLd } from './seo';
-import { htmlToText } from './utils';
+import { htmlToText, generateSlug } from './utils';
 
 // Route-level code splitting — admin + auth screens load on demand.
 const AdminLogin = lazy(() => import('./components/AdminLogin').then(m => ({ default: m.AdminLogin })));
@@ -22,6 +24,35 @@ function RouteFallback() {
       <div className="w-8 h-8 rounded-full border-2 border-border-subtle border-t-accent-indigo animate-spin" />
     </div>
   );
+}
+
+function resizeImageToAvatar(file: File, maxSize: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('Canvas not supported');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        } catch (err) {
+          reject(err);
+        }
+      };
+      img.onerror = () => reject(new Error('Invalid image'));
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => reject(reader.error || new Error('Read failed'));
+    reader.readAsDataURL(file);
+  });
 }
 
 type SortOption = 'newest' | 'oldest' | 'views' | 'saves' | 'updated' | 'alpha';
@@ -58,7 +89,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
   const { 
     papers, tags, user, bookmarkedIds, dataReady,
     toggleBookmark, readingHistory,
-    translatedTitle, translatedTagName, translatedFocusArea,
+    translatedTitle, translatedTagName, translatedFocusArea, translatedContent,
     ensureContentTranslation, language
   } = useStore();
   
@@ -71,9 +102,11 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
   const [showAllTags, setShowAllTags] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     const saved = localStorage.getItem(VIEW_MODE_KEY);
-    return saved === 'list' ? 'list' : 'list';
+    return saved === 'list' ? 'list' : 'grid';
   });
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [featuredIndex, setFeaturedIndex] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const sortRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -118,6 +151,24 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
     localStorage.setItem(VIEW_MODE_KEY, viewMode);
   }, [viewMode]);
 
+  // Keyboard shortcuts: "/" focuses search, "Esc" clears it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement;
+      const isTyping = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable);
+      if (e.key === '/' && !isTyping) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      } else if (e.key === 'Escape' && el === searchRef.current) {
+        setSearchQuery('');
+        setDebouncedQuery('');
+        searchRef.current?.blur();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const now = Date.now();
   const processedPapers = papers.map(p => {
     if (p.status === 'scheduled' && p.scheduledFor && new Date(p.scheduledFor).getTime() <= now) {
@@ -132,30 +183,65 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
   
   const authors = [...new Set(libraryPapers.map(p => p.author))].sort((a, b) => a.localeCompare(b));
 
-  const filteredPapers = libraryPapers.filter(paper => {
+  const topTags = tags
+    .map(tag => ({ tag, count: libraryPapers.filter(p => (p.tags || []).includes(tag.id)).length }))
+    .filter(x => x.count > 0)
+    .sort((a, b) => b.count - a.count || a.tag.name.localeCompare(b.tag.name))
+    .slice(0, 10);
+
+  const filteredPapers = libraryPapers.map(paper => {
     const q = debouncedQuery.trim().toLowerCase();
-    const matchesSearch = !q || paper.title.toLowerCase().includes(q) || 
-                          (paper.content && paper.content.toLowerCase().includes(q)) ||
-                          paper.author.toLowerCase().includes(q) ||
-                          (paper.keywords || '').toLowerCase().includes(q);
-    const matchesTag = selectedTagId === 'All' || (paper.tags || []).includes(selectedTagId);
-    const matchesAuthor = selectedAuthor === 'All' || paper.author === selectedAuthor;
-    return matchesSearch && matchesTag && matchesAuthor;
-  }).sort((a, b) => {
-    const aTime = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
-    const bTime = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
-    const aUpd = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-    const bUpd = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-    switch (sortBy) {
-      case 'oldest': return aTime - bTime;
-      case 'views': return b.views - a.views;
-      case 'saves': return (b.savedCount || 0) - (a.savedCount || 0);
-      case 'updated': return bUpd - aUpd;
-      case 'alpha': return a.title.localeCompare(b.title);
-      case 'newest':
-      default: return bTime - aTime;
+    if (!q) return { paper, score: 0 };
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const tagNames = (paper.tags || []).map(tid => tags.find(tg => tg.id === tid)?.name || tid).join(' ');
+    const haystacks: { text: string; weight: number }[] = [
+      { text: translatedTitle(paper), weight: 4 },
+      { text: paper.title, weight: 4 },
+      { text: paper.author, weight: 2 },
+      { text: paper.keywords || '', weight: 2 },
+      { text: tagNames, weight: 2 },
+      { text: translatedFocusArea(paper) || paper.focusArea || '', weight: 1 },
+      { text: paper.content || '', weight: 1 },
+      { text: translatedContent(paper) || '', weight: 1 },
+    ];
+    const indexed = haystacks.map(h => ({ text: h.text.toLowerCase(), weight: h.weight }));
+    let score = 0;
+    for (const token of tokens) {
+      let tokenScore = 0;
+      for (const { text, weight } of indexed) {
+        if (text.includes(token)) { tokenScore += weight; continue; }
+        // Fuzzy: token matches the start of any word in the field.
+        if (new RegExp(`(^|\\s)${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(text)) tokenScore += weight * 0.6;
+      }
+      if (tokenScore === 0) return { paper, score: -1 }; // every token must match somewhere
+      score += tokenScore;
     }
-  });
+    return { paper, score };
+  })
+    .filter(({ paper, score }) => {
+      if (score < 0) return false;
+      const matchesTag = selectedTagId === 'All' || (paper.tags || []).includes(selectedTagId);
+      const matchesAuthor = selectedAuthor === 'All' || paper.author === selectedAuthor;
+      return matchesTag && matchesAuthor;
+    })
+    .sort((a, b) => {
+      if (debouncedQuery.trim() && a.score !== b.score) return b.score - a.score;
+      const pa = a.paper, pb = b.paper;
+      const aTime = pa.publishedAt ? new Date(pa.publishedAt).getTime() : 0;
+      const bTime = pb.publishedAt ? new Date(pb.publishedAt).getTime() : 0;
+      const aUpd = pa.updatedAt ? new Date(pa.updatedAt).getTime() : 0;
+      const bUpd = pb.updatedAt ? new Date(pb.updatedAt).getTime() : 0;
+      switch (sortBy) {
+        case 'oldest': return aTime - bTime;
+        case 'views': return pb.views - pa.views;
+        case 'saves': return (pb.savedCount || 0) - (pa.savedCount || 0);
+        case 'updated': return bUpd - aUpd;
+        case 'alpha': return pa.title.localeCompare(pb.title);
+        case 'newest':
+        default: return bTime - aTime;
+      }
+    })
+    .map(entry => entry.paper);
 
   const hasActiveFilters = debouncedQuery.trim() !== '' || selectedTagId !== 'All' || selectedAuthor !== 'All';
 
@@ -168,6 +254,13 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
     navigate(`/p/${paper.slug}`);
   };
 
+  // Keep the carousel index valid when the featured list changes.
+  useEffect(() => {
+    if (featuredIndex >= featuredPapers.length) {
+      setFeaturedIndex(featuredPapers.length > 0 ? featuredPapers.length - 1 : 0);
+    }
+  }, [featuredPapers.length]);
+
   useEffect(() => {
     resetSeo();
     setSeo({
@@ -176,30 +269,92 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
         ? 'Your saved philosophy essays.'
         : 'A curated digital library of philosophy essays, thinkers, and original research — translated into 15 languages.',
       url: currentView === 'saved' ? BASE_URL + '/saved' : BASE_URL + '/',
+      robots: currentView === 'saved' ? 'noindex, nofollow' : 'index, follow',
     });
     setHreflangAlternates(currentView === 'saved' ? '/saved' : '/');
   }, [currentView]);
 
-  return (
+return (
     <>
-      <div id="main-content" className="max-w-7xl mx-auto px-4 md:px-6 py-10 md:py-20">
-        <div className="max-w-3xl mb-12 md:mb-16">
-          <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold text-text-primary tracking-tight mb-6 leading-tight">
-            {currentView === 'saved' ? t('hero.title.saved') : <>{t('hero.title.library1')}<span className="text-transparent bg-clip-text bg-gradient-to-r from-accent-indigo to-accent-cyan">{t('hero.title.library2')}</span></>}
-          </h1>
-          <p className="text-lg md:text-xl text-text-secondary leading-relaxed">
-            {currentView === 'saved' ? t('hero.subtitle.saved') : t('hero.subtitle.library')}
-          </p>
-        </div>
+      <div id="main-content" className="max-w-7xl mx-auto px-4 md:px-6 py-10 md:py-20 relative">
+        {/* Decorative hero glows */}
+        {currentView === 'library' && (
+          <div className="pointer-events-none absolute inset-x-0 -top-20 h-96 overflow-hidden" aria-hidden="true">
+            <div className="hero-glow w-80 h-80 -top-10 -start-20 opacity-20 dark:opacity-15"
+              style={{ background: 'radial-gradient(circle, var(--accent-indigo), transparent 70%)' }} />
+            <div className="hero-glow w-96 h-96 top-0 -end-24 opacity-15 dark:opacity-10 animate-float"
+              style={{ background: 'radial-gradient(circle, var(--accent-cyan), transparent 70%)' }} />
+          </div>
+        )}
 
-        {/* Featured papers at top of library */}
-        {currentView === 'library' && featuredPapers.length > 0 && (
-          <div className="mb-12">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-4 flex items-center gap-2">
-              <Sparkles size={14} className="text-accent-cyan" /> {t('library.featured')}
-            </h2>
-            <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'grid grid-cols-1 gap-4'}>
-              {featuredPapers.map((paper, index) => {
+        {/* Hero: text + featured paper side-by-side */}
+        <div className={`relative flex flex-col md:flex-row items-start gap-8 mb-8 md:mb-12 ${currentView === 'library' && featuredPapers.length > 0 ? 'lg:items-start' : ''}`}>
+          <div className="max-w-3xl">
+            <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold text-text-primary tracking-tight mb-6 leading-tight hero-title">
+              {currentView === 'saved' ? t('hero.title.saved') : <>{t('hero.title.library1')}<span className="text-gradient">{t('hero.title.library2')}</span></>}
+            </h1>
+            <p className="text-lg md:text-xl text-text-secondary leading-relaxed hero-subtitle">
+              {currentView === 'saved' ? t('hero.subtitle.saved') : t('hero.subtitle.library')}
+            </p>
+
+            {currentView === 'library' && (
+              <>
+                {/* Library stats */}
+                <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5">
+                  {[
+                    { label: t('library.statEssays'), value: libraryPapers.length.toLocaleString() },
+                    { label: t('library.statTopics'), value: topTags.length.toLocaleString() },
+                    { label: t('library.statAuthors'), value: authors.length.toLocaleString() },
+                    { label: t('library.statLanguages'), value: '15' },
+                  ].map(s => (
+                    <div key={s.label} className="flex items-baseline gap-2">
+                      <dt className="text-3xl md:text-4xl font-extrabold text-accent-indigo tracking-tight">{s.value}</dt>
+                      <dd className="text-sm font-medium text-text-muted uppercase tracking-wider">{s.label}</dd>
+                    </div>
+                  ))}
+                </dl>
+
+                {/* Popular topics */}
+                {topTags.length > 0 && (
+                  <div className="mt-8">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-text-muted mb-3">{t('library.popularTopics')}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {topTags.map(({ tag, count }) => (
+                        <button
+                          key={tag.id}
+                          onClick={() => {
+                            setSelectedTagId(tag.id);
+                            document.getElementById('library-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }}
+                          className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full border transition-all tag-hover ${
+                            selectedTagId === tag.id
+                              ? 'bg-text-primary text-bg-primary border-text-primary'
+                              : 'bg-bg-card text-text-secondary border-border-subtle hover:bg-bg-hover hover:text-text-primary'
+                          }`}
+                          style={selectedTagId === tag.id ? { backgroundColor: `${tag.color}20`, borderColor: tag.color, color: tag.color } : {}}
+                        >
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+                          {translatedTagName(tag)}
+                          <span className="text-xs opacity-70">{count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {currentView === 'library' && featuredPapers.length > 0 && (
+            <div className="relative w-full md:max-w-[400px] shrink-0 animate-slide-in-right">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-semibold uppercase tracking-widest text-accent-indigo">★</span>
+                <span className="text-xs font-semibold uppercase tracking-widest text-text-muted">{t('library.suggestedForYou')}</span>
+              </div>
+              <div className="hero-glow w-64 h-64 -top-8 -end-8 opacity-25 dark:opacity-20 animate-float"
+                style={{ background: 'radial-gradient(circle, var(--accent-indigo), transparent 70%)' }} />
+              {(() => {
+                const paper = featuredPapers[featuredIndex % featuredPapers.length];
                 const paperTags = (paper.tags || []).map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
                 const isSaved = bookmarkedIds.includes(paper.id);
                 const primaryTag = paperTags[0];
@@ -207,80 +362,27 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                 const tagColor = primaryTag?.color || '#4F46E5';
                 const excerpt = paper.metaDescription
                   ? paper.metaDescription
-                  : htmlToText(paper.content).slice(0, viewMode === 'grid' ? 180 : 220);
+                  : htmlToText(paper.content).slice(0, 180);
                 const progressKey = `philobrary_progress_${paper.slug}`;
                 const savedProgress = typeof localStorage !== 'undefined' ? Number(localStorage.getItem(progressKey) || 0) : 0;
                 const hasProgress = savedProgress > 0 && savedProgress < 100;
-
-                if (viewMode === 'grid') {
-                  return (
-                    <article
-                      key={paper.id}
-                      onClick={() => handleReadPaper(paper)}
-                      className="group relative flex flex-col bg-bg-card border border-border-subtle rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-[0_20px_40px_-12px_rgba(79,70,229,0.15)] hover:-translate-y-1 hover:border-accent-indigo/30"
-                      style={{ '--tag-color': tagColor } as React.CSSProperties}
-                    >
-                      <div className="h-1.5 bg-[var(--tag-color)] w-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      <div className="p-5 pt-4 flex items-start justify-between gap-3">
-                        <div className="flex flex-wrap gap-1.5">
-                          {displayTags.map(t => (
-                            <span key={t.id} className="inline-flex items-center px-2.5 py-1 text-xs font-semibold uppercase tracking-wider rounded-full border transition-all"
-                              style={{ backgroundColor: `${t.color}15`, borderColor: `${t.color}30`, color: t.color }}>
-                            {translatedTagName(t)}
-                          </span>
-                          ))}
-                        </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
-                          aria-label={t('reader.bookmark')}
-                          className={`flex-shrink-0 p-2 rounded-xl transition-all duration-200 ${isSaved ? 'text-accent-indigo bg-accent-indigo/10 scale-100' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'}`}
-                        >
-                          <Bookmark size={18} fill={isSaved ? "currentColor" : "none"} />
-                        </button>
-                      </div>
-                      <div className="flex-1 p-5 pt-2 flex flex-col">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="px-2 py-0.5 text-xs font-bold text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/20 rounded-full">
-                            #{index + 1}
-                          </span>
-                        </div>
-                        <h3 className="font-bold text-text-primary leading-tight mb-3 line-clamp-2 group-hover:text-accent-cyan transition-colors duration-200 text-lg md:text-xl">
-                          {translatedTitle(paper)}
-                        </h3>
-                        <p className="text-text-secondary leading-relaxed line-clamp-3 flex-1 text-sm mb-4">
-                          {excerpt}
-                        </p>
-                        {translatedFocusArea(paper) && (
-                          <span className="mb-4 inline-flex items-center px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/20 rounded-full">
-                            {translatedFocusArea(paper)}
-                          </span>
-                        )}
-                        <div className="flex items-center justify-between mt-auto pt-2 border-t border-border-subtle">
-                          <span className="text-xs text-text-muted font-medium">{paper.author}</span>
-                          <div className="flex items-center gap-2 text-xs text-text-muted">
-                            <span className="flex items-center gap-1"><Eye size={10} /> {paper.views.toLocaleString()}</span>
-                            <span className="flex items-center gap-1"><Bookmark size={10} /> {(paper.savedCount || 0).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                }
+                const prev = () => setFeaturedIndex(i => (i - 1 + featuredPapers.length) % featuredPapers.length);
+                const next = () => setFeaturedIndex(i => (i + 1) % featuredPapers.length);
                 return (
                   <article
                     key={paper.id}
                     onClick={() => handleReadPaper(paper)}
-                    className="group relative flex flex-col bg-bg-card border border-border-subtle rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-[0_20px_40px_-12px_rgba(79,70,229,0.15)] hover:-translate-y-1 hover:border-accent-indigo/30"
+                    className="group relative flex flex-col spotlight-card card-shadow rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-[0_20px_40px_-12px_rgba(79,70,229,0.2)] hover:-translate-y-1"
                     style={{ '--tag-color': tagColor } as React.CSSProperties}
                   >
-                    <div className="h-1.5 bg-[var(--tag-color)] w-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <div className="h-1.5 bg-[var(--tag-color)] w-full transition-opacity duration-300" />
                     <div className="p-5 pt-4 flex items-start justify-between gap-3">
                       <div className="flex flex-wrap gap-1.5">
                         {displayTags.map(t => (
                           <span key={t.id} className="inline-flex items-center px-2.5 py-1 text-xs font-semibold uppercase tracking-wider rounded-full border transition-all"
                             style={{ backgroundColor: `${t.color}15`, borderColor: `${t.color}30`, color: t.color }}>
-                          {translatedTagName(t)}
-                        </span>
+                            {translatedTagName(t)}
+                          </span>
                         ))}
                       </div>
                       <button
@@ -294,7 +396,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                     <div className="flex-1 p-5 pt-2 flex flex-col">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="px-2 py-0.5 text-xs font-bold text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/20 rounded-full">
-                          #{index + 1}
+                          {t('library.featured')}
                         </span>
                       </div>
                       <h3 className="font-bold text-text-primary leading-tight mb-3 line-clamp-2 group-hover:text-accent-cyan transition-colors duration-200 text-lg md:text-xl">
@@ -308,32 +410,107 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                           {translatedFocusArea(paper)}
                         </span>
                       )}
+                      {hasProgress && (
+                        <div className="mb-2">
+                          <div className="flex items-center justify-between text-xs text-text-muted mb-1">
+                            <span>{t('reader.continueReading')}</span>
+                            <span>{Math.round(savedProgress)}%</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-border-subtle rounded-full overflow-hidden">
+                            <div className="h-full bg-accent-cyan rounded-full transition-all" style={{ width: `${savedProgress}%` }} />
+                          </div>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between mt-auto pt-2 border-t border-border-subtle">
                         <span className="text-xs text-text-muted font-medium">{paper.author}</span>
                         <div className="flex items-center gap-2 text-xs text-text-muted">
-                          <span className="flex items-center gap-1"><Eye size={10} /> {paper.views.toLocaleString()}</span>
+                          <span className="flex items-center gap-1"><Eye size={10} /> {(paper.views || 0).toLocaleString()}</span>
                           <span className="flex items-center gap-1"><Bookmark size={10} /> {(paper.savedCount || 0).toLocaleString()}</span>
                         </div>
                       </div>
                     </div>
+                    {/* Carousel controls */}
+                    <div className="flex items-center justify-between px-5 pb-4">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); prev(); }}
+                        aria-label={t('library.prevFeatured')}
+                        className="p-2 rounded-xl border border-border-subtle bg-bg-secondary text-text-secondary hover:text-text-primary hover:bg-bg-hover hover:border-accent-indigo/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled={featuredPapers.length <= 1}
+                      >
+                        <ChevronLeft size={16} className="rtl:rotate-180" />
+                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {featuredPapers.map((fp, i) => (
+                          <button
+                            key={fp.id}
+                            onClick={(e) => { e.stopPropagation(); setFeaturedIndex(i); }}
+                            aria-label={`${i + 1}`}
+                            className={`w-2 h-2 rounded-full transition-all ${i === featuredIndex % featuredPapers.length ? 'bg-accent-indigo w-5' : 'bg-border-subtle hover:bg-text-muted'}`}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); next(); }}
+                        aria-label={t('library.nextFeatured')}
+                        className="p-2 rounded-xl border border-border-subtle bg-bg-secondary text-text-secondary hover:text-text-primary hover:bg-bg-hover hover:border-accent-indigo/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled={featuredPapers.length <= 1}
+                      >
+                        <ChevronRight size={16} className="rtl:rotate-180" />
+                      </button>
+                    </div>
                   </article>
                 );
-              })}
+              })()}
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        {currentView === 'library' && (() => {
+          const recentIds = readingHistory().map(h => h.id);
+          const continuePapers = papers
+            .filter(p => p.status === 'published' && recentIds.includes(p.id))
+            .sort((a, b) => (recentIds.indexOf(a.id) - recentIds.indexOf(b.id)))
+            .slice(0, 4);
+          if (continuePapers.length === 0) return null;
+          return (
+            <section className="mb-10" aria-label={t('library.continueReading')}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+                  <History size={18} className="text-accent-indigo" />
+                  {t('library.continueReading')}
+                </h2>
+                <span className="text-xs text-text-muted">{t('library.recentlyRead')}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {continuePapers.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => navigate(`/p/${p.slug}`)}
+                    className="group text-start bg-bg-card border border-border-subtle rounded-2xl p-4 card-shadow hover:border-accent-indigo/40 hover:-translate-y-0.5 transition-all"
+                  >
+                    <div className="text-xs font-semibold uppercase tracking-wider text-accent-cyan mb-2">{translatedFocusArea(p) || 'Philosophy'}</div>
+                    <div className="font-semibold text-text-primary leading-snug line-clamp-2 group-hover:text-accent-cyan transition-colors">{translatedTitle(p)}</div>
+                    <div className="mt-3 flex items-center gap-2 text-xs text-text-muted">
+                      <span>{t('library.readingTime')}: {p.readingTimeMinutes || Math.max(1, Math.round((p.wordCount || 0) / 200))} {t('library.min')}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+          );
+        })()}
 
         <div className="flex flex-col lg:flex-row gap-4 mb-8">
-          <div className="relative flex-1">
+<div className="relative flex-1">
             <div className="absolute inset-y-0 start-0 flex items-center ps-4 text-text-muted"><Search size={20} /></div>
             <input 
               ref={searchRef}
-              type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               placeholder={t('search.placeholder')}
               aria-label={t('search.placeholder')}
-              className="w-full py-4 ps-12 pe-12 bg-bg-card border border-border-subtle text-text-primary rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent-indigo/50 transition-all placeholder:text-text-muted"
+              className="w-full py-4 ps-12 pe-12 bg-bg-card border border-border-subtle text-text-primary rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent-indigo/50 transition-all placeholder:text-text-muted search-input input-focus"
             />
-            {searchQuery && (
+            {searchQuery ? (
               <button
                 onClick={() => { setSearchQuery(''); setDebouncedQuery(''); searchRef.current?.focus(); }}
                 aria-label={t('search.clear')}
@@ -341,6 +518,8 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
               >
                 <X size={18} />
               </button>
+            ) : (
+              <kbd className="absolute inset-y-0 end-0 hidden sm:flex items-center me-4 px-2 py-0.5 text-xs text-text-muted bg-bg-secondary border border-border-subtle rounded-md">/</kbd>
             )}
           </div>
 
@@ -372,12 +551,13 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center gap-3 mb-10">
-          <div className="flex flex-wrap gap-2">
+        <div className="sticky top-[60px] md:top-[72px] z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-3 mb-6 bg-bg-primary/85 backdrop-blur-xl border-b border-border-subtle">
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setSelectedTagId('All')}
               aria-pressed={selectedTagId === 'All'}
-              className={`px-5 py-2 text-sm font-medium rounded-full transition-all border ${selectedTagId === 'All' ? 'bg-text-primary text-bg-primary border-text-primary' : 'bg-bg-card text-text-secondary border-border-subtle hover:bg-bg-hover hover:text-text-primary'}`}
+              className={`px-5 py-2 text-sm font-medium rounded-full transition-all border btn-press ${selectedTagId === 'All' ? 'bg-text-primary text-bg-primary border-text-primary' : 'bg-bg-card text-text-secondary border-border-subtle hover:bg-bg-hover hover:text-text-primary'}`}
             >
               {t('filter.all')}
             </button>
@@ -388,7 +568,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                 onClick={() => setSelectedTagId(tag.id)}
                 aria-pressed={selectedTagId === tag.id}
                 style={selectedTagId === tag.id ? { backgroundColor: `${tag.color}20`, borderColor: tag.color, color: tag.color } : {}}
-                className={`px-5 py-2 text-sm font-medium rounded-full transition-all border scroll-mx-6 ${selectedTagId === tag.id ? '' : 'bg-bg-card text-text-secondary border-border-subtle hover:bg-bg-hover hover:text-text-primary'}`}
+                className={`px-5 py-2 text-sm font-medium rounded-full transition-all border tag-hover scroll-mx-6 ${selectedTagId === tag.id ? '' : 'bg-bg-card text-text-secondary border-border-subtle hover:bg-bg-hover hover:text-text-primary'}`}
               >
                 {translatedTagName(tag)}
               </button>
@@ -427,6 +607,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
               {filteredPapers.length} {filteredPapers.length === 1 ? t('library.paper') : t('library.papers')}
             </span>
           </div>
+          </div>
         </div>
 
         {hasActiveFilters && filteredPapers.length === 0 ? (
@@ -434,7 +615,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
             <Search size={48} className="mx-auto text-text-muted mb-6" />
             <h3 className="text-2xl font-bold text-text-primary mb-3">{t('empty.noMatches.title')}</h3>
             <p className="text-text-muted max-w-md mx-auto mb-8">{t('empty.noMatches.desc')}</p>
-            <button onClick={() => { setSearchQuery(''); setDebouncedQuery(''); setSelectedTagId('All'); setSelectedAuthor('All'); }} className="px-6 py-3 bg-text-primary text-bg-primary rounded-full font-medium hover:bg-bg-hover transition-colors">
+            <button onClick={() => { setSearchQuery(''); setDebouncedQuery(''); setSelectedTagId('All'); setSelectedAuthor('All'); }} className="btn-gradient px-6 py-3 text-white rounded-full font-medium transition-all">
               {t('empty.clearFilters')}
             </button>
           </div>
@@ -444,7 +625,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
             <h3 className="text-2xl font-bold text-text-primary mb-3">{currentView === 'saved' ? t('empty.saved.title') : t('empty.library.title')}</h3>
             <p className="text-text-muted max-w-md mx-auto">{currentView === 'saved' ? t('empty.saved.desc') : t('empty.library.desc')}</p>
             {currentView === 'saved' && (
-              <button onClick={() => navigate('/')} className="mt-8 px-6 py-3 bg-text-primary text-bg-primary rounded-full font-medium hover:bg-bg-hover transition-colors">
+              <button onClick={() => navigate('/')} className="btn-gradient px-6 py-3 text-white rounded-full font-medium transition-all">
                 {t('empty.explore')}
               </button>
             )}
@@ -463,8 +644,8 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
             ))}
           </div>
         ) : (
-          <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'grid grid-cols-1 gap-4'}>
-            {filteredPapers.map(paper => {
+          <div id="library-results" className={`card-grid ${viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'grid grid-cols-1 gap-4'}`}>
+            {filteredPapers.map((paper, index) => {
               const paperTags = (paper.tags || []).map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
               const isSaved = bookmarkedIds.includes(paper.id);
               const primaryTag = paperTags[0];
@@ -486,7 +667,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                   <article
                     key={paper.id}
                     onClick={() => handleReadPaper(paper)}
-                    className="group relative flex flex-col bg-bg-card border border-border-subtle rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-[0_20px_40px_-12px_rgba(79,70,229,0.15)] hover:-translate-y-1 hover:border-accent-indigo/30"
+                    className={`group relative flex flex-col bg-bg-card card-shadow border border-border-subtle rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl hover:shadow-[0_20px_40px_-12px_rgba(79,70,229,0.15)] hover:-translate-y-1 hover:border-accent-indigo/30 animate-scale-in stagger-${Math.min(index + 1, 12)}`}
                     style={{ '--tag-color': tagColor } as React.CSSProperties}
                   >
                     {/* Tag accent bar at top */}
@@ -538,15 +719,18 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                       {/* Footer with author + stats */}
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-border-subtle/50">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-accent-indigo to-accent-cyan flex items-center justify-center text-white font-bold text-sm shadow-sm">
-                            {paper.author.charAt(0).toUpperCase()}
-                          </div>
+                          <img
+                            src={paper.authorPhotoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(paper.author || 'User')}&background=4F46E5&color=fff&size=80`}
+                            alt={paper.author}
+                            className="flex-shrink-0 w-8 h-8 rounded-full object-cover shadow-sm"
+                            onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(paper.author || 'User')}&background=4F46E5&color=fff&size=80`; }}
+                          />
                           <span className="font-medium text-text-secondary truncate max-w-[140px] sm:max-w-[200px]">{paper.author}</span>
                         </div>
                         <div className="flex items-center gap-4 text-[11px] font-medium text-text-muted">
-                          <span className="flex items-center gap-1" title="Views"><Eye size={11} /> {paper.views.toLocaleString()}</span>
+                          <span className="flex items-center gap-1" title="Views"><Eye size={11} /> {(paper.views || 0).toLocaleString()}</span>
                           <span className="flex items-center gap-1" title="Saves"><Bookmark size={11} /> {(paper.savedCount || 0).toLocaleString()}</span>
-                          <span className="flex items-center gap-1"><Clock size={11} /> {paper.readingTimeMinutes} {t('paper.minRead')}</span>
+                          <span className="flex items-center gap-1"><Clock size={11} /> {paper.readingTimeMinutes || 0} {t('paper.minRead')}</span>
                         </div>
                       </div>
                     </div>
@@ -562,7 +746,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                 <article
                   key={paper.id}
                   onClick={() => handleReadPaper(paper)}
-                  className="group relative flex flex-col sm:flex-row sm:items-start gap-5 bg-bg-card border border-border-subtle rounded-2xl p-5 cursor-pointer transition-all duration-300 hover:shadow-xl hover:border-accent-indigo/30 hover:bg-bg-hover/50"
+                  className={`group relative flex flex-col sm:flex-row sm:items-start gap-5 bg-bg-card card-shadow border border-border-subtle rounded-2xl p-5 cursor-pointer transition-all duration-300 hover:shadow-xl hover:border-accent-indigo/30 hover:bg-bg-hover/50 animate-slide-in-left stagger-${Math.min(index + 1, 8)} list-item`}
                   style={{ '--tag-color': tagColor } as React.CSSProperties}
                 >
                   {/* Left accent bar */}
@@ -599,9 +783,12 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                     {/* Meta row */}
                     <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium text-text-muted">
                       <div className="flex items-center gap-1">
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-accent-indigo to-accent-cyan flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
-                          {paper.author.charAt(0).toUpperCase()}
-                        </div>
+                        <img
+                          src={paper.authorPhotoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(paper.author || 'User')}&background=4F46E5&color=fff&size=80`}
+                          alt={paper.author}
+                          className="w-5 h-5 rounded-full object-cover flex-shrink-0"
+                          onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(paper.author || 'User')}&background=4F46E5&color=fff&size=80`; }}
+                        />
                         <span className="font-medium text-text-secondary truncate max-w-[160px]">{paper.author}</span>
                       </div>
                       {translatedFocusArea(paper) && (
@@ -609,9 +796,9 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
                           {translatedFocusArea(paper)}
                         </span>
                       )}
-                      <span className="flex items-center gap-1"><Eye size={10} /> {paper.views.toLocaleString()}</span>
+                      <span className="flex items-center gap-1"><Eye size={10} /> {(paper.views || 0).toLocaleString()}</span>
                       <span className="flex items-center gap-1"><Bookmark size={10} /> {(paper.savedCount || 0).toLocaleString()}</span>
-                      <span className="flex items-center gap-1"><Clock size={10} /> {paper.readingTimeMinutes} {t('paper.minRead')}</span>
+                      <span className="flex items-center gap-1"><Clock size={10} /> {paper.readingTimeMinutes || 0} {t('paper.minRead')}</span>
                       {hasProgress && (
                         <span className="flex items-center gap-1 text-accent-indigo">
                           <div className="w-16 h-1.5 bg-bg-secondary rounded-full overflow-hidden">
@@ -643,9 +830,77 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
 }
 
 function ProfileView() {
-  const { user, showToast, theme, language } = useStore();
+  const { user, showToast, theme, language, updateUserProfile } = useStore();
   const [displayName, setDisplayName] = useState(auth.currentUser?.displayName || '');
+  const [profilePhoto, setProfilePhoto] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch the profile photo URL (Storaged URL, with legacy base64 fallback).
+  useEffect(() => {
+    if (auth.currentUser) {
+      const profileRef = ref(db, 'users/' + auth.currentUser.uid + '/profile');
+      onValue(profileRef, (snapshot) => {
+        const val = snapshot.val();
+        if (val?.photoURL) setProfilePhoto(val.photoURL);
+        else if (val?.photoBase64) setProfilePhoto(val.photoBase64);
+      });
+    }
+  }, []);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      showToast('toast.invalidImage', 'error');
+      return;
+    }
+    
+    // Validate file size (accept up to 5MB; downscaled to a compact avatar after)
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('toast.imageTooLarge', 'error');
+      return;
+    }
+
+    if (!auth.currentUser) return;
+    
+    setIsUploading(true);
+    try {
+      // Downscale to a small square avatar regardless of source size.
+      const smallImage = await resizeImageToAvatar(file, 256);
+      const userId = auth.currentUser.uid;
+      let photoRef: string;
+
+      try {
+        // Preferred: upload to Firebase Storage and store the download URL.
+        const storagePath = storageRef(storage, `avatars/${userId}.jpg`);
+        const blob = await (await fetch(smallImage)).blob();
+        await uploadBytes(storagePath, blob, { contentType: 'image/jpeg' });
+        photoRef = await getDownloadURL(storagePath);
+        await set(ref(db, `users/${userId}/profile/photoURL`), photoRef);
+      } catch (storageErr) {
+        // Fallback: keep the compact base64 in the database if Storage is unavailable.
+        console.warn('Storage upload failed, falling back to base64:', storageErr);
+        photoRef = smallImage;
+        await set(ref(db, `users/${userId}/profile/photoBase64`), smallImage);
+      }
+
+      // Firebase Auth photoURL only accepts a real URL, so blank it for base64.
+      await updateUserProfile({ photoURL: photoRef.startsWith('data:') ? '' : photoRef, authorPhotoURL: photoRef });
+      showToast('toast.photoUpdated', 'success');
+    } catch (error: any) {
+      showToast(error.message || 'toast.photoFailed', 'error');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handlePhotoClick = () => {
+    fileInputRef.current?.click();
+  };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -653,8 +908,8 @@ function ProfileView() {
     
     setIsLoading(true);
     try {
-      await updateProfile(auth.currentUser, { displayName });
-      showToast('toast.profileUpdated', 'success');
+      await updateUserProfile({ displayName });
+      setDisplayName(displayName);
     } catch (error: any) {
       showToast(error.message || 'toast.profileFailed', 'error');
     } finally {
@@ -681,6 +936,38 @@ function ProfileView() {
         
         <div className="border-t border-border-subtle pt-6 mt-6">
           <h3 className="text-lg font-medium text-text-primary mb-4">{t('profile.settings')}</h3>
+          
+          {/* Profile Picture Section */}
+          <div className="mb-8 flex items-center gap-6">
+            <div className="relative">
+              <img
+                src={profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName || 'User')}&background=4F46E5&color=fff&size=200`}
+                alt={t('profile.avatarAlt')}
+                className="w-24 h-24 rounded-full object-cover border-2 border-border-subtle"
+              />
+              <button
+                type="button"
+                onClick={handlePhotoClick}
+                className="absolute bottom-0 right-0 w-8 h-8 bg-accent-indigo text-white rounded-full flex items-center justify-center hover:bg-accent-cyan transition-colors shadow-lg"
+                aria-label={t('profile.changeAvatar')}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path><path d="m15 5 4 4"></path></svg>
+              </button>
+            </div>
+            <div>
+              <p className="font-medium text-text-primary">{t('profile.avatar')}</p>
+              <p className="text-sm text-text-muted">{t('profile.avatarHint')}</p>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoUpload}
+              className="hidden"
+              disabled={isUploading}
+            />
+          </div>
+
           <form className="space-y-4" onSubmit={handleUpdateProfile}>
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1">{t('profile.displayName')}</label>
@@ -774,11 +1061,175 @@ function NotFoundView() {
   );
 }
 
-function PublicPaperView() {
+function TagView() {
   const { slug = '' } = useParams<{ slug: string }>();
-  const { papers, tags, bookmarkedIds, toggleBookmark, incrementViews, language, ensureContentTranslation } = useStore();
+  const { papers, tags, bookmarkedIds, toggleBookmark, translatedTitle, translatedTagName, translatedFocusArea } = useStore();
   const navigate = useNavigate();
   const now = Date.now();
+
+  const processedPapers = papers.map(p => {
+    if (p.status === 'scheduled' && p.scheduledFor && new Date(p.scheduledFor).getTime() <= now) {
+      return { ...p, status: 'published' as const, publishedAt: p.scheduledFor };
+    }
+    return p;
+  });
+
+  const tag = tags.find(t => generateSlug(t.name) === slug);
+  const tagPapers = tag
+    ? processedPapers.filter(p => p.status === 'published' && (p.tags || []).includes(tag.id))
+    : [];
+
+  useEffect(() => {
+    if (!tag) {
+      resetSeo();
+      setHreflangAlternates('/');
+      return;
+    }
+    const url = `${BASE_URL}/t/${slug}`;
+    setSeo({
+      title: t('topic.seoTitle', undefined, { topic: tag.name }),
+      description: t('topic.seoDesc', undefined, { topic: tag.name }),
+      url,
+      keywords: `philosophy, ${tag.name}, philosophy ${tag.name}, essays, gio, library`,
+      robots: 'index, follow',
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'CollectionPage',
+        name: `${tag.name} — Philobrary`,
+        description: t('topic.seoDesc', undefined, { topic: tag.name }),
+        url,
+        inLanguage: 'en',
+        numberOfItems: tagPapers.length,
+        mainEntity: {
+          '@type': 'ItemList',
+          numberOfItems: tagPapers.length,
+          itemListElement: tagPapers.map((p, i) => ({
+            '@type': 'ListItem',
+            position: i + 1,
+            name: p.title,
+            url: `${BASE_URL}/p/${p.slug}`,
+          })),
+        },
+        publisher: { '@type': 'Organization', name: 'Philobrary', logo: { '@type': 'ImageObject', url: `${BASE_URL}/assets/logo-512.png` } },
+      },
+    });
+    setHreflangAlternates(`/t/${slug}`);
+    addJsonLd('breadcrumb', createBreadcrumbJsonLd([
+      { name: 'Library', url: BASE_URL + '/' },
+      { name: tag.name, url },
+    ]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tag?.id, slug]);
+
+  if (!tag) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] px-6 text-center">
+        <p className="text-text-secondary text-lg mb-6">{t('notFound')}</p>
+        <button onClick={() => navigate('/')} className="btn-gradient px-6 py-3 text-white rounded-full font-medium transition-all">
+          {t('empty.explore')}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div id="main-content" className="max-w-7xl mx-auto px-4 md:px-6 py-10 md:py-16 relative">
+      <button
+        onClick={() => navigate('/')}
+        className="mb-6 flex items-center px-3 py-2 text-sm font-medium text-text-secondary bg-bg-card hover:bg-bg-hover hover:text-text-primary rounded-full transition-colors border border-border-subtle"
+      >
+        <ChevronLeft size={16} className="me-2 rtl:rotate-180" />
+        {t('topic.back')}
+      </button>
+
+      <header className="mb-10">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="w-5 h-5 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+          <h1 className="text-3xl md:text-5xl font-bold text-text-primary tracking-tight">{translatedTagName(tag)}</h1>
+        </div>
+        <p className="text-text-secondary text-lg max-w-3xl">
+          {tagPapers.length === 1 ? t('topic.count.one') : `${tagPapers.length} ${t('topic.count.many')}`} — {t('topic.seoDesc', undefined, { topic: translatedTagName(tag) })}
+        </p>
+      </header>
+
+      {tagPapers.length === 0 ? (
+        <div className="py-24 text-center border border-dashed border-border-subtle rounded-3xl bg-bg-secondary/50">
+          <FileText size={48} className="mx-auto text-text-muted mb-6" />
+          <h3 className="text-2xl font-bold text-text-primary mb-3">{t('empty.library.title')}</h3>
+          <p className="text-text-muted max-w-md mx-auto">{t('empty.library.desc')}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {tagPapers.map((paper, index) => {
+            const paperTags = (paper.tags || []).map(tid => tags.find(tt => tt.id === tid)).filter(Boolean) as Tag[];
+            const isSaved = bookmarkedIds.includes(paper.id);
+            const primaryTag = paperTags[0];
+            const displayTags = paperTags.slice(0, 3);
+            const tagColor = primaryTag?.color || '#4F46E5';
+            const excerpt = paper.metaDescription ? paper.metaDescription : htmlToText(paper.content).slice(0, 180);
+            return (
+              <article
+                key={paper.id}
+                onClick={() => navigate(`/p/${paper.slug}`)}
+                className="group relative flex flex-col bg-bg-card card-shadow border border-border-subtle rounded-3xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 hover:border-accent-indigo/30 animate-scale-in"
+              >
+                <div className="h-1.5 w-full opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ backgroundColor: tagColor }} />
+                <div className="p-5 pt-4 flex items-start justify-between gap-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {displayTags.map(tt => (
+                      <span key={tt.id} className="inline-flex items-center px-2.5 py-1 text-xs font-semibold uppercase tracking-wider rounded-full border transition-all"
+                        style={{ backgroundColor: `${tt.color}15`, borderColor: `${tt.color}30`, color: tt.color }}>
+                        {translatedTagName(tt)}
+                      </span>
+                    ))}
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
+                    aria-label={t('reader.bookmark')}
+                    className={`flex-shrink-0 p-2 rounded-xl transition-all duration-200 ${isSaved ? 'text-accent-indigo bg-accent-indigo/10' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'}`}
+                  >
+                    <Bookmark size={18} fill={isSaved ? "currentColor" : "none"} />
+                  </button>
+                </div>
+                <div className="flex-1 p-5 pt-2 flex flex-col">
+                  <h3 className="font-bold text-text-primary leading-tight mb-3 line-clamp-2 group-hover:text-accent-cyan transition-colors duration-200 text-lg md:text-xl">
+                    {translatedTitle(paper)}
+                  </h3>
+                  <p className="text-text-secondary leading-relaxed line-clamp-3 flex-1 text-sm mb-4">{excerpt}</p>
+                  {translatedFocusArea(paper) && (
+                    <span className="mb-4 inline-flex items-center px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/20 rounded-full">
+                      {translatedFocusArea(paper)}
+                    </span>
+                  )}
+                  <div className="flex items-center justify-between mt-auto pt-3 border-t border-border-subtle">
+                    <span className="text-xs text-text-muted font-medium">{paper.author}</span>
+                    <div className="flex items-center gap-2 text-xs text-text-muted">
+                      <span className="flex items-center gap-1"><Eye size={10} /> {(paper.views || 0).toLocaleString()}</span>
+                      <span className="flex items-center gap-1"><Bookmark size={10} /> {(paper.savedCount || 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PublicPaperView() {
+  const { slug = '', lang } = useParams<{ slug: string; lang?: string }>();
+  const { papers, tags, bookmarkedIds, toggleBookmark, incrementViews, language, setLanguage, ensureContentTranslation } = useStore();
+  const navigate = useNavigate();
+  const now = Date.now();
+  const supportedLangs = ['en', 'ka', 'ru', 'pl', 'he', 'ar', 'es', 'fr', 'de', 'it', 'pt', 'tr', 'ja', 'zh', 'uk'];
+  const urlLang = lang && supportedLangs.includes(lang) ? lang : undefined;
+
+  useEffect(() => {
+    if (urlLang) setLanguage(urlLang as typeof language);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlLang]);
   const processedPapers = papers.map(p => {
     if (p.status === 'scheduled' && p.scheduledFor && new Date(p.scheduledFor).getTime() <= now) {
       return { ...p, status: 'published' as const, publishedAt: p.scheduledFor };
@@ -795,29 +1246,43 @@ function PublicPaperView() {
     }
     incrementViews(paper.id);
     ensureContentTranslation(paper, language);
+    const paperUrl = urlLang && urlLang !== 'en'
+      ? `${BASE_URL}/${urlLang}/p/${paper.slug}`
+      : `${BASE_URL}/p/${paper.slug}`;
     setSeo({
       title: paper.title,
       description: paper.metaDescription || stripMarkdown(paper.content).slice(0, 160),
-      url: `${BASE_URL}/p/${paper.slug}`,
-      ogImage: paper.ogImage || undefined,
+      url: paperUrl,
+      ogImage: paper.ogImage || `${BASE_URL}/og/${paper.slug}.png`,
       type: 'article',
       keywords: paper.keywords,
+      article: {
+        publishedTime: paper.publishedAt || paper.createdAt,
+        modifiedTime: paper.updatedAt,
+        authors: [paper.author],
+        section: paper.focusArea || 'Philosophy',
+        tags: paper.tags || [],
+      },
       jsonLd: {
         '@context': 'https://schema.org',
         '@type': 'Article',
         headline: paper.title,
+        description: (paper.metaDescription || stripMarkdown(paper.content)).slice(0, 200),
+        image: paper.ogImage || `${BASE_URL}/og/${paper.slug}.png`,
+        keywords: paper.keywords,
+        articleSection: paper.focusArea || 'Philosophy',
         author: { '@type': 'Person', name: paper.author },
         datePublished: paper.publishedAt || paper.createdAt,
         dateModified: paper.updatedAt,
         inLanguage: language,
-        publisher: { '@type': 'Organization', name: 'Philobrary' },
-        mainEntityOfPage: `${BASE_URL}/p/${paper.slug}`,
+        publisher: { '@type': 'Organization', name: 'Philobrary', logo: { '@type': 'ImageObject', url: `${BASE_URL}/assets/logo-512.png` } },
+        mainEntityOfPage: paperUrl,
       },
     });
     setHreflangAlternates(`/p/${paper.slug}`);
     addJsonLd('breadcrumb', createBreadcrumbJsonLd([
       { name: 'Library', url: BASE_URL + '/' },
-      { name: paper.title, url: `${BASE_URL}/p/${paper.slug}` },
+      { name: paper.title, url: paperUrl },
     ]));
   }, [paper?.id, language]);
 
@@ -825,7 +1290,7 @@ function PublicPaperView() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] px-6 text-center">
         <p className="text-text-secondary text-lg mb-6">{t('notFound')}</p>
-        <button onClick={() => navigate('/')} className="px-6 py-3 bg-text-primary text-bg-primary rounded-full font-medium hover:bg-bg-hover transition-colors">
+        <button onClick={() => navigate('/')} className="btn-gradient px-6 py-3 text-white rounded-full font-medium transition-all">
           {t('empty.explore')}
         </button>
       </div>
@@ -862,6 +1327,12 @@ export default function App() {
     ensureVisibleTranslations(papers, tags);
   }, [language, papers, tags, ensureVisibleTranslations]);
 
+  // Prevent search engines from indexing private/administrative routes.
+  useEffect(() => {
+    const privatePath = /^\/(admin|login|profile)\b/.test(location.pathname);
+    document.head.querySelector<HTMLMetaElement>('meta[name="robots"]')?.setAttribute('content', privatePath ? 'noindex, nofollow' : 'index, follow');
+  }, [location.pathname]);
+
   // Seed premade tags on first admin visit.
   useEffect(() => {
     if (user.isAuthenticated && isAdminEmail(user.email) && tags.length === 0) {
@@ -892,12 +1363,12 @@ export default function App() {
           </Link>
 
           <div className="flex items-center gap-1.5 md:gap-4 overflow-x-auto no-scrollbar">
-            <Link to="/" className={`flex items-center px-3 md:px-4 py-2 text-sm font-medium rounded-full transition-colors shrink-0 ${location.pathname === '/' ? 'bg-bg-card text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
+            <Link to="/" className={`flex items-center px-3 md:px-4 py-2 text-sm font-medium rounded-full transition-colors shrink-0 ${location.pathname === '/' ? 'bg-bg-card card-shadow text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
               <LibraryIcon size={16} className="md:hidden me-1.5" />
               <span className="hidden md:inline">{t('nav.library')}</span>
               <span className="md:hidden">{t('nav.library')}</span>
             </Link>
-            <Link to="/saved" className={`flex items-center px-3 md:px-4 py-2 text-sm font-medium rounded-full transition-colors shrink-0 ${location.pathname === '/saved' ? 'bg-bg-card text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
+            <Link to="/saved" className={`flex items-center px-3 md:px-4 py-2 text-sm font-medium rounded-full transition-colors shrink-0 ${location.pathname === '/saved' ? 'bg-bg-card card-shadow text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
               <Bookmark size={16} className="md:hidden me-1.5" />
               <span className="hidden md:inline">{t('nav.saved')}</span>
               <span className="md:hidden">{t('nav.saved')}</span>
@@ -938,7 +1409,7 @@ export default function App() {
                 </button>
               </>
             ) : (
-              <Link to="/login" className="px-4 py-2 text-sm font-medium text-text-primary hover:bg-bg-hover bg-bg-card border border-border-subtle rounded-full transition-colors shrink-0">
+              <Link to="/login" className="btn-gradient px-5 py-2 text-sm font-medium text-white rounded-full transition-all shrink-0">
                 {t('nav.signin')}
               </Link>
             )}
@@ -952,6 +1423,8 @@ export default function App() {
             <Route path="/" element={<LibraryView currentView="library" />} />
             <Route path="/saved" element={<LibraryView currentView="saved" />} />
             <Route path="/p/:slug" element={<PublicPaperView />} />
+            <Route path="/:lang/p/:slug" element={<PublicPaperView />} />
+            <Route path="/t/:slug" element={<TagView />} />
             <Route path="/login" element={<AdminLogin onClose={() => navigate('/')} onLogin={() => navigate('/')} />} />
             <Route path="/admin" element={
               isAdminEmail(user.email) ? (

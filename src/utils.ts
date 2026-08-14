@@ -23,7 +23,7 @@ export const sanitizeHTML = (html: string) => DOMPurify.sanitize(html);
 
 /** Strips inline color styles that are black/near-black/transparent so text inherits the theme color (fixes black text in dark mode). */
 export function stripDarkInlineColors(markdownOrHtml: string): string {
-  return markdownOrHtml.replace(
+  return (markdownOrHtml || '').replace(
     /color\s*:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|transparent|inherit)\s*[;}]?/g,
     (match, color) => {
       const c = color.trim().toLowerCase();
@@ -46,7 +46,7 @@ export function stripDarkInlineColors(markdownOrHtml: string): string {
 
 /** Removes HTML tags (including malformed ones missing `>`), leaving plain text (for SEO descriptions, snippets, etc.). */
 export function htmlToText(markdownOrHtml: string): string {
-  return markdownOrHtml
+  return (markdownOrHtml || '')
     .replace(/<[^>]*>?/g, ' ')
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`([^`]*)`/g, '$1')
@@ -143,9 +143,10 @@ export const generateSlug = (title: string) => {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 };
 
-/** Strips inline markdown formatting from a heading line and returns a stable anchor id. */
+/** Strips inline markdown formatting and HTML tags from a heading line and returns a stable anchor id. */
 export function headingSlug(line: string): { text: string; id: string } {
   const text = line
+    .replace(/<[^>]*>/g, '')
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/[*_`~>#]/g, '')
     .replace(/\s+/g, ' ')

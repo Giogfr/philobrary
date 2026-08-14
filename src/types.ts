@@ -21,6 +21,7 @@ export interface Paper {
   googleDocUrl?: string;
   content: string; // Markdown content
   author: string;
+  authorPhotoURL?: string;
   focusArea: string;
   tags: string[]; // Tag IDs
   status: PaperStatus;
@@ -46,5 +47,6 @@ export interface User {
   lastActive: number;
   displayName?: string;
   photoURL?: string;
+  uid?: string;
 }
 

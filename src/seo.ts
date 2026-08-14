@@ -41,8 +41,9 @@ export function addJsonLd(id: string, data: object) {
 
 /** Adds hreflang alternate links for all supported languages. */
 export function setHreflangAlternates(path: string) {
+  const clean = path.replace(/^\/(en|ka|ru|pl|he|ar|es|fr|de|it|pt|tr|ja|zh|uk)\b/, '').replace(/\/+$/, '') || '/';
   SUPPORTED_LANGS.forEach(lang => {
-    const href = `${BASE_URL}/${lang}${path}`;
+    const href = `${BASE_URL}/${lang}${clean}`;
     let el = document.head.querySelector<HTMLLinkElement>(`link[rel="alternate"][hreflang="${lang}"]`);
     if (!el) {
       el = document.createElement('link');
@@ -60,7 +61,7 @@ export function setHreflangAlternates(path: string) {
     xDefault.setAttribute('hreflang', 'x-default');
     document.head.appendChild(xDefault);
   }
-  xDefault.setAttribute('href', `${BASE_URL}${path}`);
+  xDefault.setAttribute('href', `${BASE_URL}${clean}`);
 }
 
 /** Creates BreadcrumbList JSON-LD for the given path segments. */
@@ -84,27 +85,47 @@ export interface SeoProps {
   ogImage?: string;
   type?: string;
   keywords?: string;
+  robots?: string;
   jsonLd?: object;
+  article?: {
+    publishedTime?: string;
+    modifiedTime?: string;
+    authors?: string[];
+    section?: string;
+    tags?: string[];
+  };
 }
 
 /** Sets document title + meta/OG/Twitter tags + optional JSON-LD. */
-export function setSeo({ title, description, url, ogImage, type = 'website', keywords, jsonLd }: SeoProps) {
+export function setSeo({ title, description, url, ogImage, type = 'website', keywords, robots, jsonLd, article }: SeoProps) {
   document.title = title.includes(SITE_NAME) ? title : `${title} — ${SITE_NAME}`;
+
+  const image = ogImage || BASE_URL + '/assets/logo-512.png';
 
   setMeta('name', 'description', description || '');
   setMeta('name', 'keywords', keywords || '');
+  setMeta('name', 'robots', robots || 'index, follow');
   setMeta('property', 'og:title', title);
   setMeta('property', 'og:type', type);
   setMeta('property', 'og:url', url || BASE_URL + '/');
   setMeta('property', 'og:site_name', SITE_NAME);
   setMeta('property', 'og:description', description || '');
-  setMeta('property', 'og:image', ogImage || BASE_URL + '/assets/logo-512.png');
+  setMeta('property', 'og:image', image);
+  setMeta('property', 'og:image:alt', description?.slice(0, 200) || title);
   setMeta('property', 'og:locale', ogLocale());
-  setMeta('name', 'twitter:card', 'summary');
+  setMeta('name', 'twitter:card', ogImage ? 'summary_large_image' : 'summary');
   setMeta('name', 'twitter:title', title);
   setMeta('name', 'twitter:description', description || '');
-  setMeta('name', 'twitter:image', ogImage || BASE_URL + '/assets/logo-512.png');
+  setMeta('name', 'twitter:image', image);
   setLink('canonical', url || BASE_URL + '/');
+
+  if (type === 'article') {
+    setMeta('property', 'article:published_time', article?.publishedTime || '');
+    setMeta('property', 'article:modified_time', article?.modifiedTime || '');
+    setMeta('property', 'article:author', (article?.authors || []).join(', '));
+    setMeta('property', 'article:section', article?.section || '');
+    setMeta('property', 'article:tag', (article?.tags || []).join(', '));
+  }
 
   if (jsonLd) addJsonLd('page-jsonld', jsonLd);
 }

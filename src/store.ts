@@ -2,7 +2,8 @@ import { useSyncExternalStore } from 'react';
 import { Paper, User, Tag, PaperStatus } from './types';
 import { sanitizeHTML, repairSeoFields, repairFlattenedTables } from './utils';
 import { auth, db } from './firebase';
-import { signOut, onAuthStateChanged } from 'firebase/auth';
+export { db };
+import { signOut, onAuthStateChanged, updateProfile } from 'firebase/auth';
 import { ref, onValue, set, remove, update, get } from 'firebase/database';
 import { setCurrentLang, t, translateShortLabel, translatePaperContent, languageNames } from './i18n';
 
@@ -92,6 +93,16 @@ interface StoreState {
   translations: Partial<Record<SupportedLanguage, TranslationBucket>>;
   pending: Set<string>;
   dataReady: boolean;
+  notifications: Notification[];
+  unreadNotifications: number;
+}
+
+interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  at: Date;
+  read: boolean;
 }
 
 const readStorage = (key: string) => {
@@ -141,14 +152,17 @@ function readHistory(): ReadingHistoryEntry[] {
 let state: StoreState = {
   papers: [],
   tags: [],
-  user: { isAuthenticated: false, email: null, lastActive: 0 },
+  user: { isAuthenticated: false, email: null, lastActive: 0, uid: null },
   bookmarkedIds: [],
   toasts: [],
-  theme: (readStorage('theme') as 'light' | 'dark') || 'light',
+  theme: (readStorage('theme') as 'light' | 'dark') ||
+    (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   language: (readStorage('language') as SupportedLanguage) || 'en',
   translations: readTranslationsCache(),
   pending: new Set(),
   dataReady: false,
+  notifications: [], // in-app notifications for current user
+  unreadNotifications: 0,
 };
 
 const listeners = new Set<() => void>();
@@ -190,10 +204,14 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'info')
   }, 3500);
 }
 
-function setTheme(theme: 'light' | 'dark') {
+function applyTheme(theme: 'light' | 'dark') {
   const root = document.documentElement;
   root.classList.toggle('dark', theme === 'dark');
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#1C1C1F' : '#F8FAFC');
+}
+
+function setTheme(theme: 'light' | 'dark') {
+  applyTheme(theme);
   writeStorage('theme', theme);
   setState({ theme });
 }
@@ -221,18 +239,32 @@ onAuthStateChanged(auth, async (currentUser) => {
         email: currentUser.email, 
         lastActive: Date.now(),
         displayName: currentUser.displayName || undefined,
-        photoURL: currentUser.photoURL || undefined
+        photoURL: currentUser.photoURL || undefined,
+        uid: currentUser.uid
       } 
     });
     try {
-      const userDoc = await get(ref(db, 'users/' + currentUser.uid));
-      const data = userDoc.exists() ? userDoc.val() : {};
-      if (data?.bookmarkedIds) setState({ bookmarkedIds: data.bookmarkedIds });
+      const userRef = ref(db, 'users/' + currentUser.uid);
+      // Merge (not overwrite) so bookmarkedIds / profile survive re-login.
+      await update(userRef, {
+        email: currentUser.email,
+        lastActive: Date.now(),
+        uid: currentUser.uid
+      });
+      // Also fetch existing bookmarkedIds from user doc
+      try {
+        const userDoc = await get(ref(db, 'users/' + currentUser.uid));
+        const data = userDoc.exists() ? userDoc.val() : {};
+        if (data?.bookmarkedIds) setState({ bookmarkedIds: data.bookmarkedIds });
+      } catch {
+        // ignore bookmark load failures
+      }
     } catch {
-      // ignore bookmark load failures
+      // ignore user setup failures
     }
   } else {
     setState({ user: { isAuthenticated: false, email: null, lastActive: 0 }, bookmarkedIds: [] });
+    subscribeUserNotifications('');
   }
 });
 
@@ -247,6 +279,14 @@ onValue(ref(db, 'papers'), (snapshot) => {
     if (fixed.metaDescription) { patch.metaDescription = fixed.metaDescription; changed = true; }
     if (fixed.keywords) { patch.keywords = fixed.keywords; changed = true; }
     if (repairedContent !== (p.content || '')) { patch.content = repairedContent; changed = true; }
+    // Fill defaults for fields that legacy records may be missing.
+    if (p.views === undefined || p.views === null) { patch.views = 0; changed = true; }
+    if (p.savedCount === undefined || p.savedCount === null) { patch.savedCount = 0; changed = true; }
+    if (p.wordCount === undefined || p.wordCount === null) { patch.wordCount = 0; changed = true; }
+    if (p.characterCount === undefined || p.characterCount === null) { patch.characterCount = 0; changed = true; }
+    if (p.readingTimeMinutes === undefined || p.readingTimeMinutes === null) { patch.readingTimeMinutes = 1; changed = true; }
+    if (!Array.isArray(p.tags)) { patch.tags = []; changed = true; }
+    if (!Array.isArray(p.revisions)) { patch.revisions = []; changed = true; }
     if (changed) {
       update(ref(db, 'papers/' + p.id), patch);
     }
@@ -267,6 +307,75 @@ onValue(ref(db, 'papers'), (snapshot) => {
   setState({ papers: [], dataReady: true });
 });
 
+// Notification system listeners
+
+function parseNotification(raw: any, key: string) {
+  let at: Date;
+  try {
+    at = raw.at?.toDate ? raw.at.toDate() : raw.at ? new Date(raw.at) : raw.createdAt ? new Date(raw.createdAt) : new Date();
+  } catch {
+    at = new Date();
+  }
+  return {
+    id: key,
+    title: raw.title || raw.subject || 'Announcement',
+    body: raw.body || raw.message || '',
+    at: isNaN(at.getTime()) ? new Date() : at,
+    read: raw.read || false,
+  };
+}
+
+onValue(ref(db, 'announcements'), (snapshot) => {
+  const data = snapshot.val();
+  if (!data) {
+    setState({ notifications: [], unreadNotifications: 0 });
+    return;
+  }
+  const announcements = Object.keys(data)
+    .map(key => parseNotification(data[key], key))
+    .sort((a, b) => b.at.getTime() - a.at.getTime());
+
+  const unreadCount = announcements.filter(n => !n.read).length;
+  setState({ notifications: announcements, unreadNotifications: unreadCount });
+}, (error) => {
+  console.error('Announcements listener error:', error);
+  setState({ notifications: [], unreadNotifications: 0 });
+});
+
+// The user's notifications path depends on their uid, so re-subscribe on auth changes.
+let unsubscribeUserNotifications: (() => void) | null = null;
+
+function subscribeUserNotifications(uid: string) {
+  if (unsubscribeUserNotifications) {
+    unsubscribeUserNotifications();
+    unsubscribeUserNotifications = null;
+  }
+  if (!uid) {
+    setState({ notifications: [], unreadNotifications: 0 });
+    return;
+  }
+  unsubscribeUserNotifications = onValue(ref(db, 'userNotifications/' + uid), (snapshot) => {
+    const data = snapshot.val();
+    if (!data) {
+      setState({ notifications: [], unreadNotifications: 0 });
+      return;
+    }
+    const userNotifs = Object.keys(data)
+      .map(key => parseNotification(data[key], key))
+      .sort((a, b) => b.at.getTime() - a.at.getTime());
+
+    const unreadCount = userNotifs.filter(n => !n.read).length;
+    setState({ notifications: userNotifs, unreadNotifications: unreadCount });
+  }, (error) => {
+    console.error('User notifications listener error:', error);
+    setState({ notifications: [], unreadNotifications: 0 });
+  });
+}
+
+subscribeUserNotifications(state.user?.uid || '');
+
+// End of notification system listeners
+
 onValue(ref(db, 'tags'), (snapshot) => {
   const data = snapshot.val();
   setState({ tags: data ? Object.values(data) as Tag[] : [], dataReady: true });
@@ -282,6 +391,19 @@ onValue(ref(db, 'tags'), (snapshot) => {
   root.dir = ['he', 'ar'].includes(state.language) ? 'rtl' : 'ltr';
   root.lang = state.language;
   setCurrentLang(state.language);
+}
+
+// Follow the OS color-scheme until the user picks a theme explicitly.
+if (typeof window !== 'undefined' && window.matchMedia && !readStorage('theme')) {
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  const applySystem = () => {
+    if (!readStorage('theme')) {
+      applyTheme(mq.matches ? 'dark' : 'light');
+      setState({ theme: mq.matches ? 'dark' : 'light' });
+    }
+  };
+  applySystem();
+  mq.addEventListener?.('change', applySystem);
 }
 
 // Fallback: ensure dataReady becomes true after 8s even if Firebase listeners fail
@@ -301,6 +423,47 @@ const logout = async () => {
     showToast('toast.loggedOut', 'success');
   } catch {
     showToast('toast.logoutError', 'error');
+  }
+};
+
+const updateUserProfile = async (patch: { displayName?: string; photoURL?: string; authorPhotoURL?: string }) => {
+  try {
+    await updateProfile(auth.currentUser!, { displayName: patch.displayName, photoURL: patch.photoURL });
+    if (state.user.isAuthenticated) {
+      setState({ user: { ...state.user, ...patch } });
+    }
+    // If authorPhotoURL provided, update all papers with the new author photo
+    if (patch.authorPhotoURL !== undefined) {
+      const newPhotoURL = patch.authorPhotoURL;
+      for (const paper of state.papers) {
+        if (paper.authorPhotoURL !== newPhotoURL) {
+          try {
+            await update(ref(db, 'papers/' + paper.id), { 
+              authorPhotoURL: newPhotoURL, 
+              updatedAt: new Date().toISOString() 
+            });
+          } catch (e) {
+            console.error('Failed to update paper', paper.id, e);
+          }
+        }
+      }
+    } else if (patch.photoURL !== undefined) {
+      const newPhotoURL = patch.photoURL;
+      for (const paper of state.papers) {
+        if (paper.authorPhotoURL !== newPhotoURL) {
+          try {
+            await update(ref(db, 'papers/' + paper.id), { 
+              authorPhotoURL: newPhotoURL, 
+              updatedAt: new Date().toISOString() 
+            });
+          } catch (e) {
+            console.error('Failed to update paper', paper.id, e);
+          }
+        }
+      }
+    }
+  } catch (error: any) {
+    showToast(error.message || 'toast.profileFailed', 'error');
   }
 };
 
@@ -361,6 +524,8 @@ const cleanPaperData = (paper: Paper): any => {
   copyIfNotUndefined('metaDescription');
   copyIfNotUndefined('keywords');
   copyIfNotUndefined('ogImage');
+  copyIfNotUndefined('featuredOrder');
+  copyIfNotUndefined('authorPhotoURL');
   
   return cleaned;
 };
@@ -417,9 +582,10 @@ const addPaper = async (paper: Paper) => {
     verifyAuth();
     // Auto-fill author from profile displayName
     const author = state.user.displayName || paper.author || 'Gio';
+    const authorPhotoURL = state.user.photoURL;
     if (paper.contentType === 'native_markdown') paper.content = sanitizeHTML(paper.content);
     
-    const cleaned = cleanPaperData({ ...paper, author });
+    const cleaned = cleanPaperData({ ...paper, author, authorPhotoURL });
     await set(ref(db, 'papers/' + paper.id), cleaned);
     showToast('toast.published', 'success');
   } catch (e) {
@@ -634,6 +800,17 @@ const ensureVisibleTranslations = (visiblePapers: Paper[], allTags: Tag[]) => {
   visiblePapers.forEach(p => ensureMetadataTranslation(p, state.language));
 };
 
+/** Marks a notification as read and updates the unread count. */
+const markNotificationRead = (id: string) => {
+  if (!state.user?.uid) return;
+  const userNotifRef = ref(db, `userNotifications/${state.user.uid}/${id}`);
+  update(userNotifRef, { read: true });
+  // Update local state
+  const newNotifs = state.notifications.map(n => n.id === id ? { ...n, read: true } : n);
+  const newUnread = state.unreadNotifications - 1;
+  setState({ notifications: newNotifs, unreadNotifications: newUnread < 0 ? 0 : newUnread });
+};
+
 /** Returns the localized display name for the current language. */
 const languageLabel = (): string => languageNames[state.language] || languageNames.en;
 
@@ -651,6 +828,7 @@ export function useStore() {
     theme: state.theme,
     language: state.language,
     dataReady: state.dataReady,
+    db,
     readingHistory,
     toggleTheme,
     setLanguage,
@@ -664,6 +842,7 @@ export function useStore() {
     seedPremadeTags,
     toggleBookmark,
     logout,
+    updateUserProfile,
     showToast,
     // Translation layer
     translatedTitle,
@@ -676,5 +855,6 @@ export function useStore() {
     ensureVisibleTranslations,
     languageLabel,
     pendingTranslations: state.pending,
+    markNotificationRead,
   };
 }

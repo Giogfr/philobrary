@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Paper, Tag, PaperStatus } from '../types';
-import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown } from 'lucide-react';
+import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown, MessageCircle } from 'lucide-react';
 import { PaperEditor } from './PaperEditor';
 import { t } from '../i18n';
 import { useStore, PREMADE_TAGS } from '../store';
+import { ref, set } from 'firebase/database';
 
 interface AdminDashboardProps {
   papers: Paper[];
@@ -26,10 +27,10 @@ const STATUS_STYLE: Record<PaperStatus, { bg: string; fg: string; border: string
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ 
   papers, tags, onAdd, onUpdate, onDelete, onAddTag, onDeleteTag, onLogout 
 }) => {
-  const { setPaperStatus, showToast } = useStore();
+  const { setPaperStatus, showToast, db } = useStore();
   const [editingPaper, setEditingPaper] = useState<Paper | undefined>(undefined);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'papers' | 'analytics' | 'tags' | 'featured'>('papers');
+  const [activeTab, setActiveTab] = useState<'papers' | 'analytics' | 'tags' | 'featured' | 'messages'>('papers');
   
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#818CF8');
@@ -37,9 +38,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [tableSearch, setTableSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | PaperStatus>('all');
   const [selectedPaperIds, setSelectedPaperIds] = useState<Set<string>>(new Set());
-
-  // Featured papers state
   const [newFeaturedPaperId, setNewFeaturedPaperId] = useState('');
+  const [sendMessageSubject, setSendMessageSubject] = useState('');
+  const [sendMessageBody, setSendMessageBody] = useState('');
+  const [recipients, setRecipients] = useState<'all' | 'selected'>('all');
+
+  const sendMessage = async () => {
+    const subject = sendMessageSubject.trim();
+    const body = sendMessageBody.trim();
+    if (!subject || !body) {
+      showToast('toast.saveFailed', 'error');
+      return;
+    }
+    try {
+      await set(ref(db, 'announcements/' + Date.now()), {
+        title: subject,
+        body,
+        at: Date.now(),
+        read: false,
+      });
+      showToast('toast.messageSent', 'success');
+      setSendMessageSubject('');
+      setSendMessageBody('');
+    } catch {
+      showToast('toast.saveFailed', 'error');
+    }
+  };
+  
   const featuredPapers = papers
     .filter(p => p.featuredOrder !== undefined && p.featuredOrder > 0)
     .sort((a, b) => (a.featuredOrder || 0) - (b.featuredOrder || 0));
@@ -51,7 +76,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const maxOrder = featuredPapers.length > 0 ? Math.max(...featuredPapers.map(fp => fp.featuredOrder || 0)) : 0;
     const paper = papers.find(p => p.id === newFeaturedPaperId);
     if (paper) {
-      onUpdate({ ...paper, featuredOrder: maxOrder + 1 });
+      onUpdate({ ...paper, featuredOrder: maxOrder + 1, updatedAt: new Date().toISOString() });
     }
     setNewFeaturedPaperId('');
   };
@@ -59,7 +84,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const removeFeatured = (id: string) => {
     const paper = papers.find(p => p.id === id);
     if (paper) {
-      onUpdate({ ...paper, featuredOrder: undefined });
+      onUpdate({ ...paper, featuredOrder: undefined, updatedAt: new Date().toISOString() });
     }
   };
 
@@ -68,13 +93,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (!fp) return;
     const currentOrder = fp.featuredOrder || 0;
     const targetOrder = direction === 'up' ? currentOrder - 1 : currentOrder + 1;
+    if (targetOrder < 1) return;
     const targetFp = featuredPapers.find(f => (f.featuredOrder || 0) === targetOrder);
     if (targetFp) {
-      onUpdate({ ...targetFp, featuredOrder: currentOrder });
+      onUpdate({ ...targetFp, featuredOrder: currentOrder, updatedAt: new Date().toISOString() });
     }
     const paper = papers.find(p => p.id === id);
     if (paper) {
-      onUpdate({ ...paper, featuredOrder: targetOrder });
+      onUpdate({ ...paper, featuredOrder: targetOrder, updatedAt: new Date().toISOString() });
     }
   };
 
@@ -209,7 +235,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   })();
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-6 md:p-8">
+    <div className="w-full max-w-7xl mx-auto p-6 md:p-8 animate-fade-in">
       {isEditorOpen && (
         <PaperEditor 
           paper={editingPaper} 
@@ -219,23 +245,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         />
       )}
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4 border-b border-border-subtle pb-8">
-        <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4 border-b border-border-subtle pb-8 animate-slide-up">
+        <div className="animate-slide-in-left">
           <h1 className="text-3xl font-bold text-text-primary tracking-tight">{t('admin.title')}</h1>
           <p className="text-text-secondary mt-1">{t('admin.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 animate-slide-in-right">
         <div className="flex items-center gap-3">
           <button 
             onClick={handleExportJson}
-            className="flex items-center px-4 py-2.5 font-medium text-text-secondary bg-bg-card hover:bg-bg-hover hover:text-text-primary border border-border-subtle rounded-full transition-colors text-sm"
+            className="flex items-center px-4 py-2.5 font-medium text-text-secondary bg-bg-card hover:bg-bg-hover hover:text-text-primary border border-border-subtle rounded-full transition-colors text-sm btn-press"
             title="Export JSON Backup"
           >
             <Download size={16} className="me-2 text-accent-cyan" /> Backup JSON
           </button>
           <button 
             onClick={() => handleOpenEditor()}
-            className="flex items-center px-5 py-2.5 font-medium text-bg-primary bg-text-primary hover:bg-bg-hover rounded-full transition-colors"
+            className="flex items-center px-5 py-2.5 font-medium text-bg-primary bg-text-primary hover:bg-bg-hover rounded-full transition-colors btn-press"
           >
             <Plus size={18} className="me-2" /> {t('admin.new')}
           </button>
@@ -243,8 +269,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       </div>
 
-      <div className="flex space-x-2 mb-8 bg-bg-card/50 p-1 rounded-full w-fit">
-        <button onClick={() => setActiveTab('papers')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'papers' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
+      <div className="flex space-x-2 mb-8 bg-bg-card/50 p-1 rounded-full w-fit animate-slide-up">
+        <button onClick={() => setActiveTab('papers')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors tab-btn ${activeTab === 'papers' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
           <FileText size={16} className="me-2" /> {t('admin.tab.content')}
         </button>
         <button onClick={() => setActiveTab('analytics')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'analytics' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
@@ -253,36 +279,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <button onClick={() => setActiveTab('featured')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'featured' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
           <Star size={16} className="me-2" /> {t('admin.tab.featured')}
         </button>
-        <button onClick={() => setActiveTab('tags')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'tags' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
-          <TagIcon size={16} className="me-2" /> {t('admin.tab.tags')}
-        </button>
+<button onClick={() => setActiveTab('messages')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'messages' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
+              <MessageCircle size={16} className="me-2" /> {t('admin.messages')}
+            </button>
       </div>
 
       {activeTab === 'analytics' && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-            <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex items-center justify-between shadow-xl">
+          <div className="card-grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex items-center justify-between shadow-xl animate-scale-in stagger-1">
               <div>
                 <p className="text-sm font-medium text-text-secondary mb-1">{t('admin.metric.publications')}</p>
                 <p className="text-3xl font-bold text-text-primary">{papers.length}</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-accent-indigo/10 text-accent-indigo flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-accent-indigo/10 text-accent-indigo flex items-center justify-center animate-float">
                 <FileText size={24} />
               </div>
             </div>
             
-            <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex items-center justify-between shadow-xl">
+            <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex items-center justify-between shadow-xl animate-scale-in stagger-2">
               <div>
                 <p className="text-sm font-medium text-text-secondary mb-1">{t('admin.metric.views')}</p>
                 <p className="text-3xl font-bold text-text-primary">{totalViews.toLocaleString()}</p>
                 <p className="text-xs text-text-muted mt-1">{Math.round(totalViews / Math.max(1, papers.length)).toLocaleString()} {t('admin.metric.avgViews')}</p>
               </div>
-              <div className="w-12 h-12 rounded-full bg-accent-cyan/10 text-accent-cyan flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-accent-cyan/10 text-accent-cyan flex items-center justify-center animate-float" style={{ animationDelay: '1s' }}>
                 <Eye size={24} />
               </div>
             </div>
             
-            <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex items-center justify-between shadow-xl">
+            <div className="p-6 bg-bg-card border border-border-subtle rounded-3xl flex items-center justify-between shadow-xl animate-scale-in stagger-3">
               <div>
                 <p className="text-sm font-medium text-text-secondary mb-1">{t('admin.metric.words')}</p>
                 <p className="text-3xl font-bold text-text-primary">{totalWords.toLocaleString()}</p>
@@ -315,7 +341,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               ) : (
                 <div className="space-y-4">
                   {topViewed.map((p, i) => (
-                    <div key={p.id} className="flex items-center gap-4">
+                    <div key={p.id} className="flex items-center gap-4 list-item stagger-${Math.min(i + 1, 10)}">
                       <span className={`w-6 text-center font-bold text-sm ${i < 3 ? 'text-accent-cyan' : 'text-text-muted'}`}>{i + 1}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1 gap-2">
@@ -387,11 +413,40 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </>
       )}
 
+      {activeTab === 'messages' && (
+      <div className="bg-bg-card border border-border-subtle rounded-3xl p-6 shadow-xl max-w-2xl">
+        <h2 className="text-lg font-semibold text-text-primary mb-6 flex items-center gap-2">
+          <MessageCircle size={20} className="text-accent-cyan" /> {t('admin.messages')}
+        </h2>
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm text-text-secondary mb-2">{t('admin.message.recipients')}</label>
+            <select value={recipients} onChange={e => setRecipients(e.target.value as 'all' | 'selected')} className="bg-bg-secondary border border-border-subtle rounded-2xl px-4 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-indigo/50">
+              <option value="all">{t('admin.message.recipientsAll')}</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-2">{t('admin.message.subject')}</label>
+            <input type="text" value={sendMessageSubject} onChange={e => setSendMessageSubject(e.target.value)} className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle text-text-primary rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent-indigo/50" placeholder={t('admin.message.subjectPlaceholder')} />
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-2">{t('admin.message.body')}</label>
+            <textarea value={sendMessageBody} onChange={e => setSendMessageBody(e.target.value)} rows={5} className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle text-text-primary rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent-indigo/50" placeholder={t('admin.message.bodyPlaceholder')}></textarea>
+          </div>
+        </div>
+        <div className="flex justify-end mt-6">
+          <button onClick={sendMessage} disabled={!sendMessageSubject.trim() || !sendMessageBody.trim()} className="px-6 py-3 bg-text-primary text-bg-primary font-medium rounded-2xl hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            {t('admin.message.send')}
+          </button>
+        </div>
+      </div>
+    )}
+
       {activeTab === 'tags' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="bg-bg-card border border-border-subtle rounded-3xl p-6 shadow-xl">
-            <h2 className="text-lg font-semibold text-text-primary mb-6">{t('admin.tags.create')}</h2>
-            <form onSubmit={handleCreateTag} className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="bg-bg-card border border-border-subtle rounded-3xl p-6 shadow-xl">
+          <h2 className="text-lg font-semibold text-text-primary mb-6">{t('admin.tags.create')}</h2>
+          <form onSubmit={handleCreateTag} className="space-y-4">
               <div>
                 <label className="text-sm text-text-secondary block mb-2">{t('admin.tags.name')}</label>
                 <input type="text" value={newTagName} onChange={e => setNewTagName(e.target.value)} className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle text-text-primary rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent-indigo/50" required placeholder="e.g. Neuroscience" />
@@ -456,7 +511,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
-      {activeTab === 'papers' && (
+    {activeTab === 'papers' && (
         <div className="space-y-4">
           {/* Filters Bar */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-bg-card border border-border-subtle p-4 rounded-3xl shadow-lg">
@@ -554,10 +609,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    filteredTablePapers.map(paper => {
+                    filteredTablePapers.map((paper, index) => {
                       const paperTagObjs = (paper.tags || []).map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
                       return (
-                        <tr key={paper.id} className={`hover:bg-bg-secondary/50 transition-colors ${selectedPaperIds.has(paper.id) ? 'bg-accent-indigo/5' : ''}`}>
+                        <tr key={paper.id} className={`hover:bg-bg-secondary/50 transition-colors list-item stagger-${Math.min(index + 1, 12)} ${selectedPaperIds.has(paper.id) ? 'bg-accent-indigo/5' : ''}`}>
                           <td className="px-4 py-4 text-center">
                             <input
                               type="checkbox"
@@ -673,12 +728,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <p className="text-sm text-text-muted">{fp.author}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => moveFeatured(fp.id, 'up')} disabled={index === 0} className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                        <ChevronUp size={18} />
-                      </button>
-                      <button onClick={() => moveFeatured(fp.id, 'down')} disabled={index === featuredPapers.length - 1} className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                        <ChevronDown size={18} />
-                      </button>
+                      {featuredPapers.length > 1 && (
+                        <>
+                          <button onClick={() => moveFeatured(fp.id, 'up')} disabled={index === 0} className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <ChevronUp size={18} />
+                          </button>
+                          <button onClick={() => moveFeatured(fp.id, 'down')} disabled={index === featuredPapers.length - 1} className="p-2 text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <ChevronDown size={18} />
+                          </button>
+                        </>
+                      )}
                       <button onClick={() => removeFeatured(fp.id)} className="p-2 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-lg transition-colors">
                         <X size={18} />
                       </button>
@@ -716,7 +775,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
       )}
-
     </div>
   );
 };

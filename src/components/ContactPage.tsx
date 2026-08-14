@@ -1,0 +1,67 @@
+import { useEffect } from 'react';
+import { Mail, Music2 } from 'lucide-react';
+import { setSeo } from '../seo';
+
+const CONTACT_EMAIL = 'giosemail0@gmail.com';
+const TIKTOK_HANDLE = '@crypt0gio';
+const TIKTOK_URL = 'https://www.tiktok.com/@crypt0gio';
+
+export function ContactPage() {
+  useEffect(() => {
+    setSeo({
+      title: 'Contact',
+      description: 'Get in touch with Gio, the author behind Philobrary — a curated digital library of philosophy essays.',
+      url: 'https://philobrary.vercel.app/contact',
+      robots: 'index, follow',
+    });
+  }, []);
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 md:px-6 py-10 md:py-16 animate-fade-in">
+      <header className="mb-12">
+        <h1 className="text-3xl md:text-4xl font-bold text-text-primary tracking-tight">Contact</h1>
+        <p className="text-text-secondary mt-3 max-w-xl leading-relaxed">
+          Have a question, feedback, or just want to talk philosophy? Reach out — I read everything.
+        </p>
+      </header>
+
+      <div className="space-y-5">
+        <a
+          href={`mailto:${CONTACT_EMAIL}`}
+          className="flex items-center gap-4 p-6 bg-bg-card border border-border-subtle rounded-3xl shadow-xl hover:border-accent-indigo/40 transition-all group"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-accent-indigo/10 text-accent-indigo flex items-center justify-center group-hover:scale-110 transition-transform">
+            <Mail size={24} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text-secondary mb-0.5">Email</p>
+            <p className="text-lg font-semibold text-text-primary truncate">{CONTACT_EMAIL}</p>
+          </div>
+        </a>
+
+        <a
+          href={TIKTOK_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-4 p-6 bg-bg-card border border-border-subtle rounded-3xl shadow-xl hover:border-accent-cyan/40 transition-all group"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-accent-cyan/10 text-accent-cyan flex items-center justify-center group-hover:scale-110 transition-transform">
+            <Music2 size={24} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text-secondary mb-0.5">TikTok</p>
+            <p className="text-lg font-semibold text-text-primary">{TIKTOK_HANDLE}</p>
+          </div>
+        </a>
+      </div>
+
+      <div className="mt-10 p-6 bg-bg-card border border-border-subtle rounded-3xl shadow-xl">
+        <h2 className="text-lg font-semibold text-text-primary mb-3">Send a message</h2>
+        <p className="text-text-secondary text-sm leading-relaxed mb-5">
+          Prefer to write an email directly? Tap the email card above, or compose one to{' '}
+          <span className="text-accent-cyan font-medium">{CONTACT_EMAIL}</span>.
+        </p>
+      </div>
+    </div>
+  );
+}

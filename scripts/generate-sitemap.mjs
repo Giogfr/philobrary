@@ -38,6 +38,14 @@ async function main() {
     <priority>1.0</priority>
   </url>`);
 
+  for (const staticPath of ['/tos', '/privacy', '/contact']) {
+    lines.push(`  <url>
+    <loc>${BASE}${staticPath}</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>`);
+  }
+
   const escSlug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
   const tagSlugs = new Set();
 

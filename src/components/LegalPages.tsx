@@ -129,7 +129,7 @@ export function LegalPage() {
           <Section title="Contact">
             <P>
               If you have questions about this Privacy Policy or your data, please contact us through the
-              site's contact or support channels.
+              <a href="/contact" className="text-accent-indigo hover:text-accent-cyan transition-colors"> contact page</a>.
             </P>
           </Section>
         </>
@@ -159,12 +159,40 @@ export function LegalPage() {
             </P>
           </Section>
 
+          <Section title="Content Usage and Reuse">
+            <P>
+              The original essays and research published on this site belong to their respective authors and
+              are protected by copyright law. We welcome citation and reuse of this work for personal,
+              educational, and non-commercial purposes under the following terms:
+            </P>
+            <ul className="space-y-2">
+              <LI>
+                You may quote from the essays, including for academic papers, blog posts, videos, and social
+                media, as long as you clearly credit the author and link back to the original essay on this
+                website.
+              </LI>
+              <LI>
+                When reusing content, please include the author's name and a visible link to the source page
+                on Philobrary (or state the title and author if linking is not possible).
+              </LI>
+              <LI>
+                You may not republish, reproduce, or distribute the full text of an essay, or sell the
+                content in any form, without prior written permission from the author.
+              </LI>
+              <LI>
+                If you are unsure whether your use is permitted, or you would like permission to republish
+                the full text, please contact us before doing so.
+              </LI>
+            </ul>
+          </Section>
+
           <Section title="Intellectual Property">
             <P>
               The original essays and research published on this site belong to their respective authors and
               are protected by copyright law. You may read and share links to the content for personal,
-              non-commercial use. You may not republish, reproduce, or distribute the full text of essays
-              without permission.
+              non-commercial use, and you may quote and reuse portions with attribution as described in the
+              "Content Usage and Reuse" section above. You may not republish, reproduce, or distribute the
+              full text of essays without permission.
             </P>
           </Section>
 
@@ -201,8 +229,8 @@ export function LegalPage() {
 
           <Section title="Contact">
             <P>
-              If you have questions about these Terms, please contact us through the site's contact or
-              support channels.
+              If you have questions about these Terms, please contact us through the
+              <a href="/contact" className="text-accent-indigo hover:text-accent-cyan transition-colors"> contact page</a>.
             </P>
           </Section>
         </>

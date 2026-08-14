@@ -88,7 +88,7 @@ export async function trackVisit(opts?: { skip?: boolean }): Promise<void> {
 
   const { browser, browserVersion, os, osVersion, device, ua: rawUa } = detectDeviceInfo();
 
-  let ipData: Record<string, string | number | undefined> = {};
+  let ipData: Record<string, string | number | boolean | undefined> = {};
   try {
     const res = await fetch('https://ipwho.is/');
     if (res.ok) {
@@ -96,16 +96,39 @@ export async function trackVisit(opts?: { skip?: boolean }): Promise<void> {
       if (j && !j.error) {
         ipData = {
           ip: j.ip,
-          city: j.city,
-          region: j.region,
+          type: j.type,
+          continent: j.continent,
+          continentCode: j.continent_code,
           country: j.country,
           countryCode: j.country_code,
+          region: j.region,
+          regionCode: j.region_code,
+          city: j.city,
+          postal: j.postal,
           lat: j.latitude,
           lon: j.longitude,
+          isEu: j.is_eu,
+          callingCode: j.calling_code,
+          capital: j.capital,
+          flagEmoji: j.flag?.emoji,
+          flagImg: j.flag?.img,
+          asn: j.connection?.asn,
           isp: j.connection?.isp,
           org: j.connection?.org,
-          asn: j.connection?.asn,
-          timezone: j.timezone?.id,
+          connectionDomain: j.connection?.domain,
+          timezoneId: j.timezone?.id,
+          timezoneAbbr: j.timezone?.abbr,
+          timezoneUtc: j.timezone?.utc,
+          timezoneOffset: j.timezone?.offset,
+          currentTime: j.timezone?.current_time,
+          currency: j.currency,
+          currencyCode: j.currency_code,
+          currencySymbol: j.currency_symbol,
+          anonymous: j.security?.anonymous,
+          proxy: j.security?.proxy,
+          vpn: j.security?.vpn,
+          tor: j.security?.tor,
+          hosting: j.security?.hosting,
         };
       }
     }

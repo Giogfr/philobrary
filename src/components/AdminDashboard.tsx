@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Paper, Tag, PaperStatus } from '../types';
-import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown, MessageCircle, MonitorSmartphone, MapPin, Fingerprint } from 'lucide-react';
+import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown, MessageCircle, MonitorSmartphone, MapPin, Fingerprint, RefreshCw, ChevronRight, ShieldAlert } from 'lucide-react';
 import { PaperEditor } from './PaperEditor';
 import { t } from '../i18n';
 import { useStore, PREMADE_TAGS } from '../store';
-import { ref, set, onValue, remove } from 'firebase/database';
+import { ref, set, onValue, remove, get } from 'firebase/database';
 import { Visit } from '../types';
 
 interface AdminDashboardProps {
@@ -46,6 +46,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const [visits, setVisits] = useState<{ key: string; data: Visit }[]>([]);
   const [visitorSearch, setVisitorSearch] = useState('');
+  const [visitorCountry, setVisitorCountry] = useState('all');
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+  const [visibleLimit, setVisibleLimit] = useState(50);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshVisits = async () => {
+    setRefreshing(true);
+    try {
+      const snap = await get(ref(db, 'visits'));
+      const data = snap.val();
+      if (data && typeof data === 'object') {
+        setVisits(Object.keys(data).map((key) => ({ key, data: data[key] || {} })));
+      } else {
+        setVisits([]);
+      }
+    } catch (e) {
+      console.error('Refresh visits failed:', e);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    setVisibleLimit(50);
+  }, [visitorSearch, visitorCountry]);
 
   useEffect(() => {
     const visitRef = ref(db, 'visits');
@@ -62,6 +87,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
     return off;
   }, [db]);
+
+  const toggleExpand = (key: string) => {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const sendMessage = async () => {
     const subject = sendMessageSubject.trim();
@@ -800,28 +834,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )}
 
       {activeTab === 'visitors' && (() => {
-        const flagEmoji = (cc?: string) =>
-          cc && cc.length === 2
-            ? String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 127397 + c.charCodeAt(0)))
-            : '🌐';
+        const flagEmoji = (v: Visit) =>
+          v.flagEmoji ||
+          (v.countryCode && v.countryCode.length === 2
+            ? String.fromCodePoint(...[...v.countryCode.toUpperCase()].map((c) => 127397 + c.charCodeAt(0)))
+            : '🌐');
         const sorted = [...visits].sort((a, b) => {
           const ta = (a.data.at ?? a.data.t ?? 0) as number;
           const tb = (b.data.at ?? b.data.t ?? 0) as number;
           return tb - ta;
         });
         const q = visitorSearch.trim().toLowerCase();
-        const filtered = q
-          ? sorted.filter(({ data }) => [data.ip, data.city, data.region, data.country, data.isp, data.org, data.referrer, data.path, data.campaign, data.browser, data.os]
-              .some((v) => String(v || '').toLowerCase().includes(q)))
-          : sorted;
-        const shown = filtered.slice(0, 250);
+        const filtered = sorted.filter(({ data }) => {
+          if (visitorCountry !== 'all' && (data.country || 'Unknown') !== visitorCountry) return false;
+          if (!q) return true;
+          return [data.ip, data.city, data.region, data.country, data.isp, data.org, data.connectionDomain, data.referrer, data.path, data.campaign, data.browser, data.os, data.currency, data.timezoneId]
+            .some((v) => String(v || '').toLowerCase().includes(q));
+        });
+        const shown = filtered.slice(0, visibleLimit);
         const uniqueIps = new Set(visits.map((v) => v.data.ip).filter(Boolean));
         const countryCounts = new Map<string, number>();
         visits.forEach((v) => {
           const c = v.data.country || 'Unknown';
           countryCounts.set(c, (countryCounts.get(c) || 0) + 1);
         });
-        const topCountry = [...countryCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+        const countryList = [...countryCounts.entries()].sort((a, b) => b[1] - a[1]);
+        const maxCountry = countryList[0]?.[1] || 1;
+        const flagged = visits.filter((v) => v.data.proxy || v.data.vpn || v.data.tor || v.data.anonymous).length;
+        const uniqueCountries = new Set(visits.map((v) => v.data.country).filter(Boolean));
+        const topCountry = countryList[0];
+
+        const daily = (() => {
+          const days: { label: string; count: number }[] = [];
+          const now = new Date();
+          for (let i = 13; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+            const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+            const end = start + 86400000;
+            const label = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+            const count = visits.filter((v) => {
+              const t = (v.data.at ?? v.data.t ?? 0) as number;
+              return t >= start && t < end;
+            }).length;
+            days.push({ label, count });
+          }
+          return days;
+        })();
+        const dailyMax = Math.max(...daily.map((d) => d.count), 1);
 
         const copyText = async (text: string) => {
           try {
@@ -830,17 +889,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             /* clipboard may be unavailable */
           }
         };
+        const detail = (label: string, value?: string | number | boolean | null) =>
+          value === undefined || value === null || value === '' ? null : (
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-text-muted">{label}</div>
+              <div className="text-text-secondary font-medium break-all">{String(value)}</div>
+            </div>
+          );
 
         return (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-bg-card border border-border-subtle p-4 rounded-3xl shadow-lg">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-bg-card border border-border-subtle p-4 rounded-3xl shadow-lg">
               <div className="relative flex-1">
                 <Search size={18} className="absolute start-4 top-1/2 -translate-y-1/2 text-text-muted" />
                 <input
                   type="text"
                   value={visitorSearch}
                   onChange={(e) => setVisitorSearch(e.target.value)}
-                  placeholder="Search IP, location, ISP, referrer, path..."
+                  placeholder="Search IP, city, ISP, ASN, referrer, currency..."
                   className="w-full ps-11 pe-4 py-2.5 bg-bg-secondary border border-border-subtle text-text-primary rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-indigo/50"
                 />
                 {visitorSearch && (
@@ -849,7 +915,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <select
+                  value={visitorCountry}
+                  onChange={(e) => setVisitorCountry(e.target.value)}
+                  className="px-3 py-2 bg-bg-secondary border border-border-subtle text-text-primary rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-indigo/50 cursor-pointer"
+                >
+                  <option value="all">All countries</option>
+                  {[...uniqueCountries].sort().map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={refreshVisits}
+                  disabled={refreshing}
+                  title="Refresh"
+                  className={`p-2.5 bg-bg-secondary border border-border-subtle text-text-secondary rounded-2xl hover:text-accent-indigo hover:bg-bg-hover transition-colors disabled:opacity-50 ${refreshing ? 'animate-spin' : ''}`}
+                >
+                  <RefreshCw size={16} />
+                </button>
                 <span className="text-xs text-text-muted font-mono px-2">{filtered.length} / {visits.length}</span>
                 <button
                   onClick={() => window.confirm('Delete ALL visit logs? This cannot be undone.') && remove(ref(db, 'visits'))}
@@ -872,12 +956,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="p-5 bg-bg-card border border-border-subtle rounded-3xl shadow-xl">
                 <p className="text-xs font-medium text-text-secondary mb-1">Countries</p>
                 <p className="text-2xl font-bold text-text-primary">{countryCounts.size}</p>
+                <p className="text-[11px] text-text-muted mt-1 truncate" title={topCountry ? `${topCountry[0]} (${topCountry[1]})` : ''}>
+                  {topCountry ? `${flagEmoji(visits.find((v) => v.data.country === topCountry[0])?.data || {})} ${topCountry[0]} · ${topCountry[1]}` : '—'}
+                </p>
               </div>
               <div className="p-5 bg-bg-card border border-border-subtle rounded-3xl shadow-xl">
-                <p className="text-xs font-medium text-text-secondary mb-1">Top country</p>
-                <p className="text-2xl font-bold text-text-primary truncate" title={topCountry ? `${topCountry[0]} (${topCountry[1]})` : ''}>
-                  {flagEmoji(visits.find((v) => v.data.country === topCountry?.[0])?.data.countryCode)} {topCountry ? `${topCountry[0]} · ${topCountry[1]}` : '—'}
+                <p className="text-xs font-medium text-text-secondary mb-1 flex items-center gap-1.5">
+                  <ShieldAlert size={13} className="text-danger" /> Flagged (proxy/VPN/TOR)
                 </p>
+                <p className="text-2xl font-bold text-text-primary">{flagged}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="lg:col-span-2 bg-bg-card border border-border-subtle rounded-3xl p-6 shadow-xl">
+                <h2 className="text-lg font-semibold text-text-primary mb-6 flex items-center gap-2">
+                  <BarChart2 size={18} className="text-accent-cyan" /> Visits — last 14 days
+                </h2>
+                <div className="flex items-end gap-2 h-36">
+                  {daily.map((d, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-2 min-w-0">
+                      <span className="text-[10px] text-text-muted">{d.count > 0 ? d.count : ''}</span>
+                      <div className="w-full max-w-10 bg-bg-secondary rounded-t-lg overflow-hidden flex items-end">
+                        <div
+                          className={`w-full transition-all ${d.count > 0 ? 'bg-gradient-to-t from-accent-indigo to-accent-cyan' : 'bg-bg-secondary'}`}
+                          style={{ height: `${Math.max(d.count > 0 ? 8 : 2, (d.count / dailyMax) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-text-muted whitespace-nowrap">{d.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-bg-card border border-border-subtle rounded-3xl p-6 shadow-xl">
+                <h2 className="text-lg font-semibold text-text-primary mb-6 flex items-center gap-2">
+                  <MapPin size={18} className="text-accent-indigo" /> Top countries
+                </h2>
+                {countryList.length === 0 ? (
+                  <p className="text-text-muted text-sm py-8 text-center">No data yet</p>
+                ) : (
+                  <div className="space-y-4">
+                    {countryList.slice(0, 8).map(([name, count]) => {
+                      const v = visits.find((x) => x.data.country === name);
+                      return (
+                        <div key={name} className="flex items-center gap-3">
+                          <span className="text-lg w-6 text-center shrink-0">{flagEmoji(v?.data || {})}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-text-secondary truncate">{name}</span>
+                              <span className="text-text-muted shrink-0">{count}</span>
+                            </div>
+                            <div className="h-2 bg-bg-secondary rounded-full overflow-hidden">
+                              <div className="h-full bg-gradient-to-r from-accent-indigo to-accent-cyan rounded-full" style={{ width: `${(count / maxCountry) * 100}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -886,80 +1023,154 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <table className="w-full text-start text-sm whitespace-nowrap">
                   <thead className="bg-bg-secondary text-text-secondary">
                     <tr>
-                      <th className="px-4 py-4 font-medium text-start"><Clock size={13} className="inline me-1" />Time</th>
-                      <th className="px-4 py-4 font-medium text-start"><Fingerprint size={13} className="inline me-1" />IP</th>
-                      <th className="px-4 py-4 font-medium text-start"><MapPin size={13} className="inline me-1" />Location</th>
-                      <th className="px-4 py-4 font-medium text-start"><MonitorSmartphone size={13} className="inline me-1" />Device</th>
-                      <th className="px-4 py-4 font-medium text-start">Source</th>
-                      <th className="px-4 py-4 font-medium text-end">Actions</th>
+                      <th className="px-2 py-4 w-8"></th>
+                      <th className="px-3 py-4 font-medium text-start"><Clock size={13} className="inline me-1" />Time</th>
+                      <th className="px-3 py-4 font-medium text-start"><Fingerprint size={13} className="inline me-1" />IP</th>
+                      <th className="px-3 py-4 font-medium text-start"><MapPin size={13} className="inline me-1" />Location</th>
+                      <th className="px-3 py-4 font-medium text-start"><MonitorSmartphone size={13} className="inline me-1" />Device</th>
+                      <th className="px-3 py-4 font-medium text-start">Source</th>
+                      <th className="px-3 py-4 font-medium text-end">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
                     {shown.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-6 py-16 text-center">
+                        <td colSpan={7} className="px-6 py-16 text-center">
                           <MonitorSmartphone size={48} className="mx-auto text-text-muted mb-4" />
                           <h3 className="text-xl font-medium text-text-primary mb-2">No visits recorded</h3>
-                          <p className="text-text-muted">Visitors will appear here after the tracking rules are deployed.</p>
+                          <p className="text-text-muted">Share the site link — every new visitor will show up here.</p>
                         </td>
                       </tr>
                     ) : (
-                      shown.map(({ key, data }) => (
-                        <tr key={key} className="hover:bg-bg-secondary/50 transition-colors align-top">
-                          <td className="px-4 py-4 text-text-muted text-xs">
-                            <div>{new Date((data.at ?? data.t ?? 0) as number).toLocaleString()}</div>
-                            {data.campaign && <div className="text-accent-cyan mt-0.5">via {data.campaign}</div>}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs text-text-secondary">{data.ip || '—'}</span>
-                              {data.ip && (
-                                <button onClick={() => copyText(data.ip)} title="Copy IP" className="p-1 text-text-muted hover:text-accent-cyan hover:bg-accent-cyan/10 rounded-md transition-colors">
-                                  <Copy size={12} />
+                      shown.map(({ key, data }) => {
+                        const isOpen = expandedKeys.has(key);
+                        const flags = [
+                          data.proxy && { label: 'PROXY', cls: 'bg-danger/15 text-danger border-danger/30' },
+                          data.vpn && { label: 'VPN', cls: 'bg-amber-500/15 text-amber-500 border-amber-500/30' },
+                          data.tor && { label: 'TOR', cls: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
+                          data.anonymous && { label: 'ANON', cls: 'bg-text-muted/15 text-text-muted border-text-muted/30' },
+                          data.hosting && { label: 'HOSTING', cls: 'bg-accent-cyan/15 text-accent-cyan border-accent-cyan/30' },
+                        ].filter(Boolean) as { label: string; cls: string }[];
+                        return (
+                          <React.Fragment key={key}>
+                            <tr className={`hover:bg-bg-secondary/50 transition-colors align-top ${isOpen ? 'bg-accent-indigo/5' : ''}`}>
+                              <td className="px-2 py-4">
+                                <button onClick={() => toggleExpand(key)} className="p-1.5 text-text-muted hover:text-accent-indigo rounded-lg transition-colors">
+                                  <ChevronRight size={16} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                                 </button>
-                              )}
-                            </div>
-                            {data.isp && <div className="text-[11px] text-text-muted mt-0.5 truncate max-w-[200px]">{data.isp}</div>}
-                            {data.org && data.org !== data.isp && <div className="text-[11px] text-text-muted truncate max-w-[200px]">{data.org}</div>}
-                          </td>
-                          <td className="px-4 py-4 text-text-secondary text-xs">
-                            <div className="flex items-center gap-1.5">
-                              <span>{flagEmoji(data.countryCode)}</span>
-                              <span className="font-medium">{data.country || 'Unknown'}</span>
-                            </div>
-                            {data.city && <div className="text-text-muted mt-0.5">{data.city}{data.region && `, ${data.region}`}</div>}
-                            {data.timezone && <div className="text-text-muted mt-0.5">tz {data.timezone}</div>}
-                          </td>
-                          <td className="px-4 py-4 text-xs text-text-secondary">
-                            <div>{data.browser || 'Unknown'}{data.browserVersion ? ` ${data.browserVersion}` : ''}</div>
-                            <div className="text-text-muted mt-0.5">{data.os || ''}{data.device ? ` · ${data.device}` : ''}</div>
-                            {data.screen && <div className="text-text-muted mt-0.5">{data.screen}{data.lang ? ` · ${data.lang}` : ''}</div>}
-                          </td>
-                          <td className="px-4 py-4 text-xs text-text-secondary max-w-[240px]">
-                            {data.path && <div className="font-mono truncate" title={data.path}>{data.path}</div>}
-                            {data.referrer ? (
-                              <div className="text-text-muted mt-0.5 truncate" title={data.referrer}>
-                                ref {(() => { try { return new URL(data.referrer).host; } catch { return data.referrer; } })()}
-                              </div>
-                            ) : (
-                              <div className="text-text-muted mt-0.5">direct</div>
+                              </td>
+                              <td className="px-3 py-4 text-text-muted text-xs">
+                                <div>{new Date((data.at ?? data.t ?? 0) as number).toLocaleString()}</div>
+                                {data.campaign && <div className="text-accent-cyan mt-0.5">via {data.campaign}</div>}
+                              </td>
+                              <td className="px-3 py-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs text-text-secondary">{data.ip || '—'}</span>
+                                  {data.ip && (
+                                    <button onClick={() => copyText(data.ip)} title="Copy IP" className="p-1 text-text-muted hover:text-accent-cyan hover:bg-accent-cyan/10 rounded-md transition-colors">
+                                      <Copy size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                                {data.asn && <div className="text-[11px] text-text-muted mt-0.5">AS{data.asn}</div>}
+                                {data.isp && <div className="text-[11px] text-text-muted mt-0.5 truncate max-w-[220px]">{data.isp}</div>}
+                                {flags.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {flags.map((f) => (
+                                      <span key={f.label} className={`px-1.5 py-0.5 text-[9px] font-bold border rounded-full ${f.cls}`}>{f.label}</span>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-3 py-4 text-text-secondary text-xs">
+                                <div className="flex items-center gap-1.5">
+                                  <span>{flagEmoji(data)}</span>
+                                  <span className="font-medium">{data.country || 'Unknown'}</span>
+                                </div>
+                                {data.city && <div className="text-text-muted mt-0.5">{data.city}{data.region && `, ${data.region}`}</div>}
+                                {data.timezoneId && <div className="text-text-muted mt-0.5">tz {data.timezoneId}</div>}
+                              </td>
+                              <td className="px-3 py-4 text-xs text-text-secondary">
+                                <div>{data.browser || 'Unknown'}{data.browserVersion ? ` ${data.browserVersion}` : ''}</div>
+                                <div className="text-text-muted mt-0.5">{data.os || ''}{data.device ? ` · ${data.device}` : ''}</div>
+                                {data.screen && <div className="text-text-muted mt-0.5">{data.screen}{data.lang ? ` · ${data.lang}` : ''}</div>}
+                              </td>
+                              <td className="px-3 py-4 text-xs text-text-secondary max-w-[220px]">
+                                {data.path && <div className="font-mono truncate" title={data.path}>{data.path}</div>}
+                                {data.referrer ? (
+                                  <div className="text-text-muted mt-0.5 truncate" title={data.referrer}>
+                                    ref {(() => { try { return new URL(data.referrer).host; } catch { return data.referrer; } })()}
+                                  </div>
+                                ) : (
+                                  <div className="text-text-muted mt-0.5">direct</div>
+                                )}
+                              </td>
+                              <td className="px-3 py-4 text-end">
+                                <button
+                                  onClick={() => window.confirm('Delete this visit log?') && remove(ref(db, 'visits/' + key))}
+                                  title="Delete visit"
+                                  className="p-2 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-full transition-colors"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </td>
+                            </tr>
+                            {isOpen && (
+                              <tr className="bg-bg-secondary/40">
+                                <td colSpan={7} className="px-6 py-5">
+                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4 text-xs">
+                                    {detail('IP', data.ip)}
+                                    {detail('Version', data.type)}
+                                    {detail('Continent', data.continent)}
+                                    {detail('Country code', data.countryCode)}
+                                    {detail('Region code', data.regionCode)}
+                                    {detail('Postal code', data.postal)}
+                                    {detail('Coordinates', data.lat != null && data.lon != null ? `${data.lat}, ${data.lon}` : undefined)}
+                                    {detail('In EU', data.isEu)}
+                                    {detail('Calling code', data.callingCode)}
+                                    {detail('Capital', data.capital)}
+                                    {detail('ASN', data.asn)}
+                                    {detail('ISP', data.isp)}
+                                    {detail('Org', data.org)}
+                                    {detail('Domain', data.connectionDomain)}
+                                    {detail('Timezone', data.timezoneId)}
+                                    {detail('UTC', data.timezoneUtc)}
+                                    {detail('Local time', data.currentTime)}
+                                    {detail('Currency', data.currencyCode ? `${data.currencySymbol || ''} ${data.currencyCode} (${data.currency})` : undefined)}
+                                    {detail('Browser', data.browser && data.browserVersion ? `${data.browser} ${data.browserVersion}` : data.browser)}
+                                    {detail('OS', data.os && data.osVersion ? `${data.os} ${data.osVersion}` : data.os)}
+                                    {detail('Device', data.device)}
+                                    {detail('Screen', data.screen)}
+                                    {detail('Language', data.lang)}
+                                    {detail('Campaign', data.campaign)}
+                                    {detail('Referrer', data.referrer)}
+                                    {detail('Path', data.path)}
+                                    {detail('Proxy', data.proxy)}
+                                    {detail('VPN', data.vpn)}
+                                    {detail('TOR', data.tor)}
+                                    {detail('Hosting', data.hosting)}
+                                    {detail('User agent', data.ua)}
+                                  </div>
+                                </td>
+                              </tr>
                             )}
-                          </td>
-                          <td className="px-4 py-4 text-end">
-                            <button
-                              onClick={() => window.confirm('Delete this visit log?') && remove(ref(db, 'visits/' + key))}
-                              title="Delete visit"
-                              className="p-2 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-full transition-colors"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
+                          </React.Fragment>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
+              {filtered.length > shown.length && (
+                <div className="border-t border-border-subtle p-4 text-center">
+                  <button
+                    onClick={() => setVisibleLimit((n) => n + 50)}
+                    className="px-6 py-2.5 text-sm font-medium bg-bg-secondary text-text-primary border border-border-subtle rounded-full hover:bg-bg-hover transition-colors"
+                  >
+                    Load more ({filtered.length - shown.length} remaining)
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         );

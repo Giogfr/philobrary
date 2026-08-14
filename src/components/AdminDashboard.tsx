@@ -90,6 +90,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return off;
   }, [db]);
 
+  const [myIp, setMyIp] = useState('');
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('https://ipwho.is/');
+        if (res.ok) {
+          const j = await res.json();
+          if (j && j.ip) { setMyIp(j.ip); return; }
+        }
+      } catch { /* ignore */ }
+      try {
+        const res = await fetch('https://api.ipify.org?format=json');
+        if (res.ok) {
+          const j = await res.json();
+          if (j && j.ip) setMyIp(j.ip);
+        }
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
   const toggleExpand = (key: string) => {
     setExpandedKeys((prev) => {
       const next = new Set(prev);
@@ -1199,6 +1219,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
+                {myIp && (
+                  <button
+                    onClick={() => { setVisitorSearch(myIp); setGroupByIp(true); }}
+                    title="Click to filter to this device's IP"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-accent-indigo/10 text-accent-indigo border border-accent-indigo/30 rounded-2xl hover:bg-accent-indigo/20 transition-colors shrink-0"
+                  >
+                    <Fingerprint size={13} /> My IP: {myIp}
+                  </button>
+                )}
                 <div className="flex items-center gap-1 p-1 bg-bg-secondary border border-border-subtle rounded-full shrink-0">
                   <button
                     onClick={() => setGroupByIp(true)}

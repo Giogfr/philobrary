@@ -53,6 +53,7 @@ export interface User {
 export interface Visit {
   at?: number;
   t?: number;
+  self?: boolean;
   ip?: string;
   type?: string;
   continent?: string;

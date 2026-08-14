@@ -74,10 +74,10 @@ function detectDeviceInfo(): DeviceInfo {
 
 /**
  * Records a visit (IP, approximate location, device/browser/OS, referrer)
- * to Firebase /visits, once per browser session. Admin visits are skipped.
- * Never throws — tracking must never break the app.
+ * to Firebase /visits, once per browser session. Owner visits are recorded
+ * with `self: true`. Never throws — tracking must never break the app.
  */
-export async function trackVisit(opts?: { skip?: boolean }): Promise<void> {
+export async function trackVisit(opts?: { skip?: boolean; self?: boolean }): Promise<void> {
   if (opts?.skip) return;
   try {
     if (sessionStorage.getItem(SESSION_KEY)) return;
@@ -154,6 +154,7 @@ export async function trackVisit(opts?: { skip?: boolean }): Promise<void> {
   const data = {
     at: serverTimestamp(),
     t: Date.now(),
+    self: Boolean(opts?.self),
     path: window.location.pathname,
     campaign,
     referrer: document.referrer || '',

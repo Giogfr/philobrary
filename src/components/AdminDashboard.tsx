@@ -50,6 +50,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const [visibleLimit, setVisibleLimit] = useState(50);
   const [refreshing, setRefreshing] = useState(false);
+  const [groupByIp, setGroupByIp] = useState(true);
+  const [visitorSort, setVisitorSort] = useState<'recent' | 'visits'>('recent');
 
   const refreshVisits = async () => {
     setRefreshing(true);
@@ -852,6 +854,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             .some((v) => String(v || '').toLowerCase().includes(q));
         });
         const shown = filtered.slice(0, visibleLimit);
+        const groups = new Map<string, { ip: string; entries: { key: string; data: Visit }[]; count: number; firstSeen: number; lastSeen: number }>();
+        filtered.forEach((entry) => {
+          const ip = entry.data.ip || '(no IP)';
+          const t = (entry.data.at ?? entry.data.t ?? 0) as number;
+          let g = groups.get(ip);
+          if (!g) { g = { ip, entries: [], count: 0, firstSeen: t || 0, lastSeen: t || 0 }; groups.set(ip, g); }
+          g.entries.push(entry);
+          g.count += 1;
+          if (t && t < g.firstSeen) g.firstSeen = t;
+          if (t && t > g.lastSeen) g.lastSeen = t;
+        });
+        const groupList = [...groups.values()].sort((a, b) =>
+          visitorSort === 'visits' ? b.count - a.count || b.lastSeen - a.lastSeen : b.lastSeen - a.lastSeen);
+        const shownGroups = groupList.slice(0, visibleLimit);
+        const repeatIps = [...groups.values()].filter((g) => g.count > 1).length;
+        const displayCount = groupByIp ? shownGroups.length : shown.length;
+        const totalCount = groupByIp ? groupList.length : filtered.length;
         const uniqueIps = new Set(visits.map((v) => v.data.ip).filter(Boolean));
         const countryCounts = new Map<string, number>();
         visits.forEach((v) => {
@@ -897,6 +916,260 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           );
 
+        const renderFlatRow = (key: string, data: Visit) => {
+          const isOpen = expandedKeys.has(key);
+          const flags = [
+            data.proxy && { label: 'PROXY', cls: 'bg-danger/15 text-danger border-danger/30' },
+            data.vpn && { label: 'VPN', cls: 'bg-amber-500/15 text-amber-500 border-amber-500/30' },
+            data.tor && { label: 'TOR', cls: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
+            data.anonymous && { label: 'ANON', cls: 'bg-text-muted/15 text-text-muted border-text-muted/30' },
+            data.hosting && { label: 'HOSTING', cls: 'bg-accent-cyan/15 text-accent-cyan border-accent-cyan/30' },
+          ].filter(Boolean) as { label: string; cls: string }[];
+          return (
+            <React.Fragment key={key}>
+              <tr className={`hover:bg-bg-secondary/50 transition-colors align-top ${isOpen ? 'bg-accent-indigo/5' : ''}`}>
+                <td className="px-2 py-4">
+                  <button onClick={() => toggleExpand(key)} className="p-1.5 text-text-muted hover:text-accent-indigo rounded-lg transition-colors">
+                    <ChevronRight size={16} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                  </button>
+                </td>
+                <td className="px-3 py-4 text-text-muted text-xs">
+                  <div>{new Date((data.at ?? data.t ?? 0) as number).toLocaleString()}</div>
+                  {data.campaign && <div className="text-accent-cyan mt-0.5">via {data.campaign}</div>}
+                </td>
+                <td className="px-3 py-4">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-text-secondary">{data.ip || '—'}</span>
+                    {data.ip && (
+                      <button onClick={() => copyText(data.ip)} title="Copy IP" className="p-1 text-text-muted hover:text-accent-cyan hover:bg-accent-cyan/10 rounded-md transition-colors">
+                        <Copy size={12} />
+                      </button>
+                    )}
+                  </div>
+                  {data.asn && <div className="text-[11px] text-text-muted mt-0.5">AS{data.asn}</div>}
+                  {data.isp && <div className="text-[11px] text-text-muted mt-0.5 truncate max-w-[220px]">{data.isp}</div>}
+                  {flags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {flags.map((f) => (
+                        <span key={f.label} className={`px-1.5 py-0.5 text-[9px] font-bold border rounded-full ${f.cls}`}>{f.label}</span>
+                      ))}
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 py-4 text-text-secondary text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span>{flagEmoji(data)}</span>
+                    <span className="font-medium">{data.country || 'Unknown'}</span>
+                  </div>
+                  {data.city && <div className="text-text-muted mt-0.5">{data.city}{data.region && `, ${data.region}`}</div>}
+                  {data.timezoneId && <div className="text-text-muted mt-0.5">tz {data.timezoneId}</div>}
+                </td>
+                <td className="px-3 py-4 text-xs text-text-secondary">
+                  <div>{data.browser || 'Unknown'}{data.browserVersion ? ` ${data.browserVersion}` : ''}</div>
+                  <div className="text-text-muted mt-0.5">{data.os || ''}{data.device ? ` · ${data.device}` : ''}</div>
+                  {data.screen && <div className="text-text-muted mt-0.5">{data.screen}{data.lang ? ` · ${data.lang}` : ''}</div>}
+                </td>
+                <td className="px-3 py-4 text-xs text-text-secondary max-w-[220px]">
+                  {data.path && <div className="font-mono truncate" title={data.path}>{data.path}</div>}
+                  {data.referrer ? (
+                    <div className="text-text-muted mt-0.5 truncate" title={data.referrer}>
+                      ref {(() => { try { return new URL(data.referrer).host; } catch { return data.referrer; } })()}
+                    </div>
+                  ) : (
+                    <div className="text-text-muted mt-0.5">direct</div>
+                  )}
+                </td>
+                <td className="px-3 py-4 text-end">
+                  <button
+                    onClick={() => window.confirm('Delete this visit log?') && remove(ref(db, 'visits/' + key))}
+                    title="Delete visit"
+                    className="p-2 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-full transition-colors"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </td>
+              </tr>
+              {isOpen && (
+                <tr className="bg-bg-secondary/40">
+                  <td colSpan={7} className="px-6 py-5">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4 text-xs">
+                      {detail('IP', data.ip)}
+                      {detail('Version', data.type)}
+                      {detail('Continent', data.continent)}
+                      {detail('Country code', data.countryCode)}
+                      {detail('Region code', data.regionCode)}
+                      {detail('Postal code', data.postal)}
+                      {detail('Coordinates', data.lat != null && data.lon != null ? `${data.lat}, ${data.lon}` : undefined)}
+                      {detail('In EU', data.isEu)}
+                      {detail('Calling code', data.callingCode)}
+                      {detail('Capital', data.capital)}
+                      {detail('ASN', data.asn)}
+                      {detail('ISP', data.isp)}
+                      {detail('Org', data.org)}
+                      {detail('Domain', data.connectionDomain)}
+                      {detail('Timezone', data.timezoneId)}
+                      {detail('UTC', data.timezoneUtc)}
+                      {detail('DST active', data.timezoneDst)}
+                      {detail('Local time', data.currentTime)}
+                      {detail('Currency', data.currencyCode ? `${data.currencySymbol || ''} ${data.currencyCode} (${data.currency})` : undefined)}
+                      {detail('Exchange rate', data.exchangeRate != null ? `1 USD = ${data.exchangeRate} ${data.currencyCode || ''}` : undefined)}
+                      {detail('Neighboring countries', Array.isArray(data.borders) && data.borders.length ? data.borders.join(', ') : undefined)}
+                      {detail('Browser', data.browser && data.browserVersion ? `${data.browser} ${data.browserVersion}` : data.browser)}
+                      {detail('OS', data.os && data.osVersion ? `${data.os} ${data.osVersion}` : data.os)}
+                      {detail('Device', data.device)}
+                      {detail('Screen', data.screen)}
+                      {detail('Language', data.lang)}
+                      {detail('Campaign', data.campaign)}
+                      {detail('Referrer', data.referrer)}
+                      {detail('Path', data.path)}
+                      {detail('Proxy', data.proxy)}
+                      {detail('VPN', data.vpn)}
+                      {detail('TOR', data.tor)}
+                      {detail('Hosting', data.hosting)}
+                      {detail('User agent', data.ua)}
+                    </div>
+                    <VisitorDeepInfo ip={data.ip} lat={data.lat} lon={data.lon} />
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          );
+        };
+
+        const renderGroupRow = (g: { ip: string; entries: { key: string; data: Visit }[]; count: number; firstSeen: number; lastSeen: number }) => {
+          const last = [...g.entries].sort((a, b) => ((b.data.at ?? b.data.t ?? 0) as number) - ((a.data.at ?? a.data.t ?? 0) as number))[0].data;
+          const isOpen = expandedKeys.has('ip:' + g.ip);
+          const flags = [
+            last.proxy && { label: 'PROXY', cls: 'bg-danger/15 text-danger border-danger/30' },
+            last.vpn && { label: 'VPN', cls: 'bg-amber-500/15 text-amber-500 border-amber-500/30' },
+            last.tor && { label: 'TOR', cls: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
+            last.anonymous && { label: 'ANON', cls: 'bg-text-muted/15 text-text-muted border-text-muted/30' },
+            last.hosting && { label: 'HOSTING', cls: 'bg-accent-cyan/15 text-accent-cyan border-accent-cyan/30' },
+          ].filter(Boolean) as { label: string; cls: string }[];
+          const paths = new Set(g.entries.map((e) => e.data.path).filter(Boolean));
+          const devices = new Set(g.entries.map((e) => `${e.data.browser || '?'}/${e.data.device || '?'}`));
+          return (
+            <React.Fragment key={'ip:' + g.ip}>
+              <tr className={`hover:bg-bg-secondary/50 transition-colors align-top ${isOpen ? 'bg-accent-indigo/5' : ''}`}>
+                <td className="px-2 py-4">
+                  <button onClick={() => toggleExpand('ip:' + g.ip)} className="p-1.5 text-text-muted hover:text-accent-indigo rounded-lg transition-colors">
+                    <ChevronRight size={16} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                  </button>
+                </td>
+                <td className="px-3 py-4 text-text-muted text-xs">
+                  <div>{new Date(g.lastSeen).toLocaleString()}</div>
+                  <div className="mt-0.5">first {new Date(g.firstSeen).toLocaleDateString()}</div>
+                </td>
+                <td className="px-3 py-4">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono text-xs text-text-secondary">{g.ip}</span>
+                    {g.ip !== '(no IP)' && (
+                      <button onClick={() => copyText(g.ip)} title="Copy IP" className="p-1 text-text-muted hover:text-accent-cyan hover:bg-accent-cyan/10 rounded-md transition-colors">
+                        <Copy size={12} />
+                      </button>
+                    )}
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-accent-indigo/15 text-accent-indigo border border-accent-indigo/30 rounded-full">
+                      ×{g.count}
+                    </span>
+                    {last.self && (
+                      <span className="px-2 py-0.5 text-[10px] font-bold bg-accent-cyan/15 text-accent-cyan border border-accent-cyan/30 rounded-full">YOU</span>
+                    )}
+                  </div>
+                  {last.asn && <div className="text-[11px] text-text-muted mt-0.5">AS{last.asn}</div>}
+                  {last.isp && <div className="text-[11px] text-text-muted mt-0.5 truncate max-w-[220px]">{last.isp}</div>}
+                  {flags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {flags.map((f) => (
+                        <span key={f.label} className={`px-1.5 py-0.5 text-[9px] font-bold border rounded-full ${f.cls}`}>{f.label}</span>
+                      ))}
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 py-4 text-text-secondary text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span>{flagEmoji(last)}</span>
+                    <span className="font-medium">{last.country || 'Unknown'}</span>
+                  </div>
+                  {last.city && <div className="text-text-muted mt-0.5">{last.city}{last.region && `, ${last.region}`}</div>}
+                  {last.timezoneId && <div className="text-text-muted mt-0.5">tz {last.timezoneId}</div>}
+                </td>
+                <td className="px-3 py-4 text-xs text-text-secondary">
+                  <div>{last.browser || 'Unknown'}{last.browserVersion ? ` ${last.browserVersion}` : ''}</div>
+                  <div className="text-text-muted mt-0.5">{last.os || ''}{last.device ? ` · ${last.device}` : ''}</div>
+                  <div className="text-text-muted mt-0.5">{devices.size} device{devices.size === 1 ? '' : 's'}</div>
+                </td>
+                <td className="px-3 py-4 text-xs text-text-secondary max-w-[220px]">
+                  {last.path && <div className="font-mono truncate" title={last.path}>{last.path}</div>}
+                  {last.referrer ? (
+                    <div className="text-text-muted mt-0.5 truncate" title={last.referrer}>
+                      ref {(() => { try { return new URL(last.referrer).host; } catch { return last.referrer; } })()}
+                    </div>
+                  ) : (
+                    <div className="text-text-muted mt-0.5">direct</div>
+                  )}
+                  <div className="text-text-muted mt-0.5">{paths.size} page{paths.size === 1 ? '' : 's'} visited</div>
+                </td>
+                <td className="px-3 py-4 text-end">
+                  <button
+                    onClick={() => window.confirm(`Delete all ${g.count} visits from ${g.ip}?`) && Promise.all(g.entries.map((e) => remove(ref(db, 'visits/' + e.key)))).catch(() => undefined)}
+                    title="Delete all visits from this IP"
+                    className="p-2 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-full transition-colors"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </td>
+              </tr>
+              {isOpen && (
+                <tr className="bg-bg-secondary/40">
+                  <td colSpan={7} className="px-6 py-5">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4 text-xs">
+                      {detail('Total visits', g.count)}
+                      {detail('First seen', new Date(g.firstSeen).toLocaleString())}
+                      {detail('Last seen', new Date(g.lastSeen).toLocaleString())}
+                      {detail('IP', g.ip)}
+                      {detail('Owner (self)', last.self)}
+                      {detail('Version', last.type)}
+                      {detail('Continent', last.continent)}
+                      {detail('Country', last.country)}
+                      {detail('Region', last.region)}
+                      {detail('City', last.city)}
+                      {detail('ISP', last.isp)}
+                      {detail('ASN', last.asn)}
+                      {detail('Org', last.org)}
+                      {detail('Domain', last.connectionDomain)}
+                      {detail('Coordinates', last.lat != null && last.lon != null ? `${last.lat}, ${last.lon}` : undefined)}
+                      {detail('Time zone', last.timezoneId)}
+                      {detail('Security flags', [last.proxy && 'proxy', last.vpn && 'vpn', last.tor && 'tor', last.anonymous && 'anonymous', last.hosting && 'hosting'].filter(Boolean).join(', ') || undefined)}
+                    </div>
+                    <div className="mt-6 border-t border-border-subtle pt-4">
+                      <div className="text-[10px] uppercase tracking-wide text-text-muted mb-2">Visits ({g.count})</div>
+                      <div className="space-y-1.5">
+                        {[...g.entries].sort((a, b) => ((b.data.at ?? b.data.t ?? 0) as number) - ((a.data.at ?? a.data.t ?? 0) as number)).map(({ key, data }) => (
+                          <div key={key} className="flex items-center gap-2.5 text-xs bg-bg-card/60 border border-border-subtle rounded-xl px-3 py-2">
+                            <span className="text-text-muted shrink-0">{new Date((data.at ?? data.t ?? 0) as number).toLocaleString()}</span>
+                            <span className="text-accent-cyan font-mono truncate flex-1 min-w-0">{data.path || '/'}</span>
+                            {data.campaign && <span className="text-text-muted shrink-0">via {data.campaign}</span>}
+                            {data.self && <span className="text-[9px] font-bold text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/30 rounded-full px-1.5 py-0.5 shrink-0">YOU</span>}
+                            <span className="text-text-muted shrink-0 hidden md:inline">{data.device}</span>
+                            <button
+                              onClick={() => window.confirm('Delete this visit?') && remove(ref(db, 'visits/' + key))}
+                              title="Delete this visit"
+                              className="p-1 text-text-muted hover:text-danger rounded-md transition-colors"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <VisitorDeepInfo ip={last.ip} lat={last.lat} lon={last.lon} />
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
+          );
+        };
+
         return (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-bg-card border border-border-subtle p-4 rounded-3xl shadow-lg">
@@ -926,6 +1199,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
+                <div className="flex items-center gap-1 p-1 bg-bg-secondary border border-border-subtle rounded-full shrink-0">
+                  <button
+                    onClick={() => setGroupByIp(true)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${groupByIp ? 'bg-accent-indigo text-white' : 'text-text-secondary hover:text-text-primary'}`}
+                  >
+                    By IP
+                  </button>
+                  <button
+                    onClick={() => setGroupByIp(false)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${!groupByIp ? 'bg-accent-indigo text-white' : 'text-text-secondary hover:text-text-primary'}`}
+                  >
+                    All visits
+                  </button>
+                </div>
+                {groupByIp && (
+                  <select
+                    value={visitorSort}
+                    onChange={(e) => setVisitorSort(e.target.value as 'recent' | 'visits')}
+                    className="px-3 py-2 bg-bg-secondary border border-border-subtle text-text-primary rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-accent-indigo/50 cursor-pointer"
+                  >
+                    <option value="recent">Recent</option>
+                    <option value="visits">Most visits</option>
+                  </select>
+                )}
                 <button
                   onClick={refreshVisits}
                   disabled={refreshing}
@@ -934,7 +1231,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 >
                   <RefreshCw size={16} />
                 </button>
-                <span className="text-xs text-text-muted font-mono px-2">{filtered.length} / {visits.length}</span>
+                <span className="text-xs text-text-muted font-mono px-2">{displayCount} / {totalCount}</span>
                 <button
                   onClick={() => window.confirm('Delete ALL visit logs? This cannot be undone.') && remove(ref(db, 'visits'))}
                   className="px-3 py-2 text-xs font-medium bg-danger/20 text-danger border border-danger/30 rounded-full hover:bg-danger/30 transition-colors"
@@ -952,6 +1249,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="p-5 bg-bg-card border border-border-subtle rounded-3xl shadow-xl">
                 <p className="text-xs font-medium text-text-secondary mb-1">Unique IPs</p>
                 <p className="text-2xl font-bold text-text-primary">{uniqueIps.size.toLocaleString()}</p>
+                <p className="text-[11px] text-text-muted mt-1">{repeatIps} repeat visitor{repeatIps === 1 ? '' : 's'}</p>
               </div>
               <div className="p-5 bg-bg-card border border-border-subtle rounded-3xl shadow-xl">
                 <p className="text-xs font-medium text-text-secondary mb-1">Countries</p>
@@ -1033,145 +1331,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
-                    {shown.length === 0 ? (
+                    {displayCount === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-6 py-16 text-center">
                           <MonitorSmartphone size={48} className="mx-auto text-text-muted mb-4" />
-                          <h3 className="text-xl font-medium text-text-primary mb-2">No visits recorded</h3>
-                          <p className="text-text-muted">Share the site link — every new visitor will show up here.</p>
+                          <h3 className="text-xl font-medium text-text-primary mb-2">{visits.length === 0 ? 'No visits recorded' : 'No visitors match your filters'}</h3>
+                          <p className="text-text-muted">{visits.length === 0 ? 'Share the site link — every new visitor will show up here.' : 'Try a different search term or country.'}</p>
                         </td>
                       </tr>
+                    ) : groupByIp ? (
+                      shownGroups.map((g) => renderGroupRow(g))
                     ) : (
-                      shown.map(({ key, data }) => {
-                        const isOpen = expandedKeys.has(key);
-                        const flags = [
-                          data.proxy && { label: 'PROXY', cls: 'bg-danger/15 text-danger border-danger/30' },
-                          data.vpn && { label: 'VPN', cls: 'bg-amber-500/15 text-amber-500 border-amber-500/30' },
-                          data.tor && { label: 'TOR', cls: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
-                          data.anonymous && { label: 'ANON', cls: 'bg-text-muted/15 text-text-muted border-text-muted/30' },
-                          data.hosting && { label: 'HOSTING', cls: 'bg-accent-cyan/15 text-accent-cyan border-accent-cyan/30' },
-                        ].filter(Boolean) as { label: string; cls: string }[];
-                        return (
-                          <React.Fragment key={key}>
-                            <tr className={`hover:bg-bg-secondary/50 transition-colors align-top ${isOpen ? 'bg-accent-indigo/5' : ''}`}>
-                              <td className="px-2 py-4">
-                                <button onClick={() => toggleExpand(key)} className="p-1.5 text-text-muted hover:text-accent-indigo rounded-lg transition-colors">
-                                  <ChevronRight size={16} className={`transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-                                </button>
-                              </td>
-                              <td className="px-3 py-4 text-text-muted text-xs">
-                                <div>{new Date((data.at ?? data.t ?? 0) as number).toLocaleString()}</div>
-                                {data.campaign && <div className="text-accent-cyan mt-0.5">via {data.campaign}</div>}
-                              </td>
-                              <td className="px-3 py-4">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono text-xs text-text-secondary">{data.ip || '—'}</span>
-                                  {data.ip && (
-                                    <button onClick={() => copyText(data.ip)} title="Copy IP" className="p-1 text-text-muted hover:text-accent-cyan hover:bg-accent-cyan/10 rounded-md transition-colors">
-                                      <Copy size={12} />
-                                    </button>
-                                  )}
-                                </div>
-                                {data.asn && <div className="text-[11px] text-text-muted mt-0.5">AS{data.asn}</div>}
-                                {data.isp && <div className="text-[11px] text-text-muted mt-0.5 truncate max-w-[220px]">{data.isp}</div>}
-                                {flags.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {flags.map((f) => (
-                                      <span key={f.label} className={`px-1.5 py-0.5 text-[9px] font-bold border rounded-full ${f.cls}`}>{f.label}</span>
-                                    ))}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-3 py-4 text-text-secondary text-xs">
-                                <div className="flex items-center gap-1.5">
-                                  <span>{flagEmoji(data)}</span>
-                                  <span className="font-medium">{data.country || 'Unknown'}</span>
-                                </div>
-                                {data.city && <div className="text-text-muted mt-0.5">{data.city}{data.region && `, ${data.region}`}</div>}
-                                {data.timezoneId && <div className="text-text-muted mt-0.5">tz {data.timezoneId}</div>}
-                              </td>
-                              <td className="px-3 py-4 text-xs text-text-secondary">
-                                <div>{data.browser || 'Unknown'}{data.browserVersion ? ` ${data.browserVersion}` : ''}</div>
-                                <div className="text-text-muted mt-0.5">{data.os || ''}{data.device ? ` · ${data.device}` : ''}</div>
-                                {data.screen && <div className="text-text-muted mt-0.5">{data.screen}{data.lang ? ` · ${data.lang}` : ''}</div>}
-                              </td>
-                              <td className="px-3 py-4 text-xs text-text-secondary max-w-[220px]">
-                                {data.path && <div className="font-mono truncate" title={data.path}>{data.path}</div>}
-                                {data.referrer ? (
-                                  <div className="text-text-muted mt-0.5 truncate" title={data.referrer}>
-                                    ref {(() => { try { return new URL(data.referrer).host; } catch { return data.referrer; } })()}
-                                  </div>
-                                ) : (
-                                  <div className="text-text-muted mt-0.5">direct</div>
-                                )}
-                              </td>
-                              <td className="px-3 py-4 text-end">
-                                <button
-                                  onClick={() => window.confirm('Delete this visit log?') && remove(ref(db, 'visits/' + key))}
-                                  title="Delete visit"
-                                  className="p-2 text-text-secondary hover:text-danger hover:bg-danger/10 rounded-full transition-colors"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              </td>
-                            </tr>
-                            {isOpen && (
-                              <tr className="bg-bg-secondary/40">
-                                <td colSpan={7} className="px-6 py-5">
-                                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4 text-xs">
-                                    {detail('IP', data.ip)}
-                                    {detail('Version', data.type)}
-                                    {detail('Continent', data.continent)}
-                                    {detail('Country code', data.countryCode)}
-                                    {detail('Region code', data.regionCode)}
-                                    {detail('Postal code', data.postal)}
-                                    {detail('Coordinates', data.lat != null && data.lon != null ? `${data.lat}, ${data.lon}` : undefined)}
-                                    {detail('In EU', data.isEu)}
-                                    {detail('Calling code', data.callingCode)}
-                                    {detail('Capital', data.capital)}
-                                    {detail('ASN', data.asn)}
-                                    {detail('ISP', data.isp)}
-                                    {detail('Org', data.org)}
-                                    {detail('Domain', data.connectionDomain)}
-                                    {detail('Timezone', data.timezoneId)}
-                                    {detail('UTC', data.timezoneUtc)}
-                                    {detail('DST active', data.timezoneDst)}
-                                    {detail('Local time', data.currentTime)}
-                                    {detail('Currency', data.currencyCode ? `${data.currencySymbol || ''} ${data.currencyCode} (${data.currency})` : undefined)}
-                                    {detail('Exchange rate', data.exchangeRate != null ? `1 USD = ${data.exchangeRate} ${data.currencyCode || ''}` : undefined)}
-                                    {detail('Neighboring countries', Array.isArray(data.borders) && data.borders.length ? data.borders.join(', ') : undefined)}
-                                    {detail('Browser', data.browser && data.browserVersion ? `${data.browser} ${data.browserVersion}` : data.browser)}
-                                    {detail('OS', data.os && data.osVersion ? `${data.os} ${data.osVersion}` : data.os)}
-                                    {detail('Device', data.device)}
-                                    {detail('Screen', data.screen)}
-                                    {detail('Language', data.lang)}
-                                    {detail('Campaign', data.campaign)}
-                                    {detail('Referrer', data.referrer)}
-                                    {detail('Path', data.path)}
-                                    {detail('Proxy', data.proxy)}
-                                    {detail('VPN', data.vpn)}
-                                    {detail('TOR', data.tor)}
-                                    {detail('Hosting', data.hosting)}
-                                    {detail('User agent', data.ua)}
-                                  </div>
-                                  <VisitorDeepInfo ip={data.ip} lat={data.lat} lon={data.lon} />
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })
+                      shown.map(({ key, data }) => renderFlatRow(key, data))
                     )}
                   </tbody>
                 </table>
               </div>
-              {filtered.length > shown.length && (
+              {totalCount > displayCount && (
                 <div className="border-t border-border-subtle p-4 text-center">
                   <button
                     onClick={() => setVisibleLimit((n) => n + 50)}
                     className="px-6 py-2.5 text-sm font-medium bg-bg-secondary text-text-primary border border-border-subtle rounded-full hover:bg-bg-hover transition-colors"
                   >
-                    Load more ({filtered.length - shown.length} remaining)
+                    Load more ({totalCount - displayCount} remaining)
                   </button>
                 </div>
               )}

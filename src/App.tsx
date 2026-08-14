@@ -1343,9 +1343,10 @@ export default function App() {
     }
   }, [user.isAuthenticated, user.email, tags.length, seedPremadeTags]);
 
-  // Visitor analytics (IP / device / location) — skipped for admins.
+  // Visitor analytics (IP / device / location). Owner visits are recorded too,
+  // flagged as `self` so they can be identified in the Visitors tab.
   useEffect(() => {
-    trackVisit({ skip: user.isAuthenticated && isAdminEmail(user.email) });
+    trackVisit({ self: user.isAuthenticated && isAdminEmail(user.email) });
   }, [user.isAuthenticated, user.email]);
 
   const now = Date.now();

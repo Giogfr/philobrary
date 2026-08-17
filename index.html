@@ -9,7 +9,7 @@
     <meta name="author" content="Gio" />
     <meta name="robots" content="index, follow" />
     <meta name="google-site-verification" content="HeWE77ebXmtPASzsSdHTqENufsOv9l-sCK5XnujFEhg" />
-    <meta name="theme-color" content="#F8FAFC" />
+    <meta name="theme-color" content="#000000" />
     <link rel="canonical" href="https://philobrary.vercel.app/" />
 
     <!-- Open Graph -->
@@ -35,12 +35,6 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-128.png" />
     <link rel="apple-touch-icon" href="/assets/logo-512.png" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Merriweather:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -66,16 +60,6 @@
     </script>
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5060779146125096"
      crossorigin="anonymous"></script>
-    <script>
-      atOptions = {
-        'key' : 'ad027cb5c3ceeb72ca3cb64a95381d9d',
-        'format' : 'iframe',
-        'height' : 90,
-        'width' : 728,
-        'params' : {}
-      };
-    </script>
-    <script src="https://www.highperformanceformat.com/ad027cb5c3ceeb72ca3cb64a95381d9d/invoke.js" async></script>
     <style>
       #root:not(.app-ready) { opacity: 0; }
       #root.app-ready { opacity: 1; transition: opacity 0.45s ease-in; }
@@ -85,7 +69,54 @@
     </noscript>
   </head>
   <body>
+    <!-- Adsterra Banner 728x90 - TOP (centered) -->
+    <div style="display:flex;justify-content:center;width:100%;min-height:90px">
+      <script>
+        atOptions = {
+          'key' : 'ad027cb5c3ceeb72ca3cb64a95381d9d',
+          'format' : 'iframe',
+          'height' : 90,
+          'width' : 728,
+          'params' : {}
+        };
+      </script>
+      <script src="https://www.highperformanceformat.com/ad027cb5c3ceeb72ca3cb64a95381d9d/invoke.js"></script>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Adsterra Banner 728x90 - BOTTOM (centered) -->
+    <div style="display:flex;justify-content:center;width:100%;min-height:90px">
+      <script>
+        atOptions = {
+          'key' : 'ad027cb5c3ceeb72ca3cb64a95381d9d',
+          'format' : 'iframe',
+          'height' : 90,
+          'width' : 728,
+          'params' : {}
+        };
+      </script>
+      <script src="https://www.highperformanceformat.com/ad027cb5c3ceeb72ca3cb64a95381d9d/invoke.js"></script>
+    </div>
+
+    <!-- Adsterra Popunder -->
+    <script src="https://pl30892301.effectivecpmnetwork.com/16/2f/9e/162f9ea0d9ee3473bba32af34e888dce.js"></script>
+    <!-- Adsterra Social Bar -->
+    <script src="https://pl30892302.effectivecpmnetwork.com/9b/71/48/9b71485a6b94605c68a3e9d2a2853da2.js"></script>
+    <!-- Adsterra SmartLink (auto-redirect page - opens every 3rd click) -->
+    <script>
+      (function () {
+        var SMARTLINK = 'https://www.effectivecpmnetwork.com/cjdt4sixz?key=c287384717ed0ece358d692e47e728b8';
+        var EVERY_N_CLICKS = 3;
+        var clickCount = 0;
+        document.addEventListener('click', function () {
+          clickCount++;
+          if (clickCount % EVERY_N_CLICKS === 0) {
+            var w = window.open(SMARTLINK, '_blank', 'width=480,height=360');
+            if (w) w.opener = null;
+          }
+        }, true);
+      })();
+    </script>
   </body>
 </html>

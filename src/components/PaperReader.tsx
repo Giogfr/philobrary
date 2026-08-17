@@ -11,6 +11,7 @@ import { t, languageShortNames } from '../i18n';
 import { BASE_URL } from '../seo';
 import { Flag } from './Flag';
 import { LanguageSelector } from './LanguageSelector';
+import SidebarAd from './SidebarAd';
 const sanitizeHtml = (html: string): string => {
   const allowedTags = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'div', 'span']);
   const allowedAttrs: Record<string, Set<string>> = {
@@ -680,6 +681,10 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
             )}
           </article>
         </main>
+
+        <aside className="hidden xl:flex w-[160px] shrink-0 border-s border-border-subtle bg-bg-secondary/50 items-start justify-center p-4 overflow-y-auto no-print">
+          <SidebarAd />
+        </aside>
       </div>
 
       {/* Mobile Outline Drawer */}

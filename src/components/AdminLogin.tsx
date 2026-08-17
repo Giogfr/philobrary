@@ -56,7 +56,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onClose, onLogin }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg-primary/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-bg-primary/80 backdrop-blur-md">
       <div className="relative w-full max-w-md p-8 bg-bg-card border border-border-subtle shadow-2xl rounded-3xl">
         <button 
           onClick={onClose}

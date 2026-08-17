@@ -250,7 +250,7 @@ export const PaperEditor: React.FC<PaperEditorProps> = ({ paper, initialTitle, a
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-bg-primary">
+    <div className="fixed inset-0 z-[100] flex flex-col bg-bg-primary">
       <header className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-bg-primary/80 backdrop-blur-md">
         <div className="flex items-center">
           <button 

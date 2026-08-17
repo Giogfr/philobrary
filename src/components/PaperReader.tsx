@@ -387,7 +387,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   const closeModal = (setter: (v: boolean) => void) => setter(false);
 
   return (
-    <div className={`reader-root fixed inset-0 z-40 flex flex-col bg-bg-primary overflow-hidden ${isSepia ? 'reader-sepia' : ''} animate-fade-in`}>
+    <div className={`reader-root fixed inset-0 z-[80] flex flex-col bg-bg-primary overflow-hidden ${isSepia ? 'reader-sepia' : ''} animate-fade-in`}>
       {/* Progress Bar */}
       <div className="absolute top-0 start-0 h-1 bg-accent-indigo transition-all duration-150 z-50 progress-bar" style={{ width: `${readingProgress}%` }} />
 
@@ -684,7 +684,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
 
       {/* Mobile Outline Drawer */}
       {showOutline && isMarkdown && headings.length > 0 && (
-        <div className="md:hidden fixed inset-0 z-50 bg-bg-primary/60 backdrop-blur-sm flex justify-end animate-fade-in">
+        <div className="md:hidden fixed inset-0 z-[90] bg-bg-primary/60 backdrop-blur-sm flex justify-end animate-fade-in">
           <div className="w-72 h-full bg-bg-card border-s border-border-subtle p-6 overflow-y-auto shadow-2xl sidebar-enter">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">{t('reader.contents')}</h3>
@@ -750,7 +750,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
 
       {/* Citations Modal */}
       {showCitations && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg-primary/80 backdrop-blur-md" onClick={() => closeModal(setShowCitations)}>
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-bg-primary/80 backdrop-blur-md" onClick={() => closeModal(setShowCitations)}>
           <div className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto p-8 bg-bg-card border border-border-subtle shadow-2xl rounded-3xl" onClick={e => e.stopPropagation()}>
             <button onClick={() => closeModal(setShowCitations)} className="absolute top-4 end-4 p-2 text-text-secondary hover:text-text-primary bg-bg-secondary hover:bg-bg-hover rounded-full transition-colors">
               <X size={20} />
@@ -784,7 +784,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
 
       {/* Share Modal */}
       {showShare && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg-primary/80 backdrop-blur-md" onClick={() => closeModal(setShowShare)}>
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-bg-primary/80 backdrop-blur-md" onClick={() => closeModal(setShowShare)}>
           <div className="relative w-full max-w-md p-8 bg-bg-card border border-border-subtle shadow-2xl rounded-3xl" onClick={e => e.stopPropagation()}>
             <button onClick={() => closeModal(setShowShare)} className="absolute top-4 end-4 p-2 text-text-secondary hover:text-text-primary bg-bg-secondary hover:bg-bg-hover rounded-full transition-colors">
               <X size={20} />
@@ -843,7 +843,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
 
       {/* Image Zoom Modal */}
       {zoomedImg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md cursor-zoom-out" onClick={() => setZoomedImg(null)}>
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md cursor-zoom-out" onClick={() => setZoomedImg(null)}>
           <button onClick={() => setZoomedImg(null)} className="absolute top-6 end-6 p-3 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors">
             <X size={24} />
           </button>

@@ -27,7 +27,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onClose }) =
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-bg-primary/70 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-bg-primary/70 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-md bg-bg-card border border-border-subtle rounded-3xl overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()} role="dialog" aria-label={t('lang.title')}>
         <div className="p-4 border-b border-border-subtle flex items-center justify-between">
           <h2 className="text-xl font-bold text-text-primary flex items-center">

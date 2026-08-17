@@ -6,6 +6,7 @@
       ".read": true,
       ".write": "auth != null && (auth.token.email == 'idontsayidontsay@gmail.com' || auth.token.email == 'larpgio@gmail.com')",
       "$paperId": {
+        ".write": "auth != null",
         "views": {
           ".write": true
         },
@@ -27,6 +28,10 @@
         ".read": "auth != null && (auth.uid == $uid || auth.token.email == 'idontsayidontsay@gmail.com')",
         ".write": "auth != null && (auth.uid == $uid || auth.token.email == 'idontsayidontsay@gmail.com')"
       }
+    },
+    "announcements": {
+      ".read": "auth != null && auth.token.email == 'idontsayidontsay@gmail.com'",
+      ".write": "auth != null && auth.token.email == 'idontsayidontsay@gmail.com'"
     }
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Paper, Tag, PaperStatus, PaperRequest, RequestStatus } from '../types';
-import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown, MessageCircle, Inbox } from 'lucide-react';
+import { FileText, Eye, Edit3, Trash2, CheckCircle, Clock, Plus, BarChart2, Tag as TagIcon, LayoutDashboard, Archive, AlertCircle, X, Save, Sparkles, Activity, Bookmark, Copy, Download, Search, Star, ChevronUp, ChevronDown, Inbox } from 'lucide-react';
 import { PaperEditor } from './PaperEditor';
 import { t } from '../i18n';
 import { useStore, PREMADE_TAGS } from '../store';
@@ -30,7 +30,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const { setPaperStatus, showToast, db } = useStore();
   const [editingPaper, setEditingPaper] = useState<Paper | undefined>(undefined);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'papers' | 'analytics' | 'tags' | 'featured' | 'messages' | 'requests'>('papers');
+  const [activeTab, setActiveTab] = useState<'papers' | 'analytics' | 'tags' | 'featured' | 'requests'>('papers');
   
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState('#818CF8');
@@ -43,31 +43,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | PaperStatus>('all');
   const [selectedPaperIds, setSelectedPaperIds] = useState<Set<string>>(new Set());
   const [newFeaturedPaperId, setNewFeaturedPaperId] = useState('');
-  const [sendMessageSubject, setSendMessageSubject] = useState('');
-  const [sendMessageBody, setSendMessageBody] = useState('');
-  const [recipients, setRecipients] = useState<'all' | 'selected'>('all');
-
-  const sendMessage = async () => {
-    const subject = sendMessageSubject.trim();
-    const body = sendMessageBody.trim();
-    if (!subject || !body) {
-      showToast('toast.saveFailed', 'error');
-      return;
-    }
-    try {
-      await set(ref(db, 'announcements/' + Date.now()), {
-        title: subject,
-        body,
-        at: Date.now(),
-        read: false,
-      });
-      showToast('toast.messageSent', 'success');
-      setSendMessageSubject('');
-      setSendMessageBody('');
-    } catch {
-      showToast('toast.saveFailed', 'error');
-    }
-  };
 
   useEffect(() => {
     const reqRef = ref(db, 'requests');
@@ -329,9 +304,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <button onClick={() => setActiveTab('featured')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'featured' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
           <Star size={16} className="me-2" /> {t('admin.tab.featured')}
         </button>
-<button onClick={() => setActiveTab('messages')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'messages' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
-              <MessageCircle size={16} className="me-2" /> {t('admin.messages')}
-            </button>
         <button onClick={() => setActiveTab('requests')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'requests' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
           <Inbox size={16} className="me-2" /> {t('admin.tab.requests')}
           {newRequestCount > 0 && (
@@ -397,7 +369,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               ) : (
                 <div className="space-y-4">
                   {topViewed.map((p, i) => (
-                    <div key={p.id} className="flex items-center gap-4 list-item stagger-${Math.min(i + 1, 10)}">
+                    <div key={p.id} className={`flex items-center gap-4 list-item stagger-${Math.min(i + 1, 10)}`}>
                       <span className={`w-6 text-center font-bold text-sm ${i < 3 ? 'text-accent-cyan' : 'text-text-muted'}`}>{i + 1}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1 gap-2">
@@ -468,35 +440,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </>
       )}
-
-      {activeTab === 'messages' && (
-      <div className="bg-bg-card border border-border-subtle rounded-3xl p-6 shadow-xl max-w-2xl">
-        <h2 className="text-lg font-semibold text-text-primary mb-6 flex items-center gap-2">
-          <MessageCircle size={20} className="text-accent-cyan" /> {t('admin.messages')}
-        </h2>
-        <div className="space-y-5">
-          <div>
-            <label className="block text-sm text-text-secondary mb-2">{t('admin.message.recipients')}</label>
-            <select value={recipients} onChange={e => setRecipients(e.target.value as 'all' | 'selected')} className="bg-bg-secondary border border-border-subtle rounded-2xl px-4 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-indigo/50">
-              <option value="all">{t('admin.message.recipientsAll')}</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm text-text-secondary mb-2">{t('admin.message.subject')}</label>
-            <input type="text" value={sendMessageSubject} onChange={e => setSendMessageSubject(e.target.value)} className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle text-text-primary rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent-indigo/50" placeholder={t('admin.message.subjectPlaceholder')} />
-          </div>
-          <div>
-            <label className="block text-sm text-text-secondary mb-2">{t('admin.message.body')}</label>
-            <textarea value={sendMessageBody} onChange={e => setSendMessageBody(e.target.value)} rows={5} className="w-full px-4 py-3 bg-bg-secondary border border-border-subtle text-text-primary rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent-indigo/50" placeholder={t('admin.message.bodyPlaceholder')}></textarea>
-          </div>
-        </div>
-        <div className="flex justify-end mt-6">
-          <button onClick={sendMessage} disabled={!sendMessageSubject.trim() || !sendMessageBody.trim()} className="px-6 py-3 bg-text-primary text-bg-primary font-medium rounded-2xl hover:bg-bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            {t('admin.message.send')}
-          </button>
-        </div>
-      </div>
-    )}
 
       {activeTab === 'tags' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

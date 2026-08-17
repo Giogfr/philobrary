@@ -304,6 +304,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <button onClick={() => setActiveTab('featured')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'featured' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
           <Star size={16} className="me-2" /> {t('admin.tab.featured')}
         </button>
+        <button onClick={() => setActiveTab('tags')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'tags' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
+          <TagIcon size={16} className="me-2" /> {t('admin.tab.tags')}
+        </button>
         <button onClick={() => setActiveTab('requests')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors ${activeTab === 'requests' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
           <Inbox size={16} className="me-2" /> {t('admin.tab.requests')}
           {newRequestCount > 0 && (

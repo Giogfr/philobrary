@@ -291,7 +291,7 @@ return (
                 {t('hero.title.saved')}
               </h1>
             ) : (
-              <BalloonHeadline fillColor={theme === 'dark' ? '#fff' : '#000'} />
+              <BalloonHeadline theme={theme === 'dark' ? 'dark' : 'light'} />
             )}
             <p className={`text-[15px] md:text-[17px] text-text-secondary leading-relaxed hero-subtitle max-w-[50ch] anim-enter anim-d3`}>
               {currentView === 'saved' ? t('hero.subtitle.saved') : t('hero.subtitle.library')}

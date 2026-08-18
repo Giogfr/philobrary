@@ -130,11 +130,9 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   const [isSepia, setIsSepia] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [activeHeadingId, setActiveHeadingId] = useState<string>('');
-  const [headerHidden, setHeaderHidden] = useState(false);
   const [zoomedImg, setZoomedImg] = useState<string | null>(null);
   const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
   const saveProgressTimer = useRef<number | null>(null);
-  const lastScrollTop = useRef(0);
 
   // Focus mode: toggle a body class that hides chrome and narrows the column.
   useEffect(() => {
@@ -212,14 +210,6 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
         requestAnimationFrame(() => {
           setReadingProgress(progress);
           setShowBackToTop(currentTop > 500);
-
-          // Auto-hide header on scroll down, show on scroll up
-          if (currentTop > 120 && currentTop > lastScrollTop.current + 10) {
-            setHeaderHidden(true);
-          } else if (currentTop < lastScrollTop.current - 10 || currentTop < 60) {
-            setHeaderHidden(false);
-          }
-          lastScrollTop.current = currentTop;
 
           // Scroll-spy TOC active heading tracking
           const currentHeadings = headingsRef.current;
@@ -398,7 +388,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
         </button>
       )}
       
-      <header className={`flex items-center justify-between px-4 md:px-6 py-4 bg-bg-primary/80 backdrop-blur-md border-b border-border-subtle z-10 shrink-0 gap-3 transition-transform duration-200 ${headerHidden ? '-translate-y-full' : 'translate-y-0'} no-print`}>
+      <header className="flex items-center justify-between px-4 md:px-6 py-4 bg-bg-primary/80 backdrop-blur-md border-b border-border-subtle z-10 shrink-0 gap-3 no-print">
         <button 
           onClick={onClose}
           className="flex items-center px-3 md:px-4 py-2 text-sm font-medium text-text-secondary bg-bg-card hover:bg-bg-hover hover:text-text-primary rounded-full transition-colors shrink-0"

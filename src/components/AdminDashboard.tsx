@@ -270,12 +270,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         />
       )}
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4 border-b border-border-subtle pb-8 animate-slide-up">
-        <div className="animate-slide-in-left">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4 border-b border-border-subtle pb-8">
+        <div>
           <h1 className="text-3xl font-bold text-text-primary tracking-tight">{t('admin.title')}</h1>
           <p className="text-text-secondary mt-1">{t('admin.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-4 animate-slide-in-right">
+        <div className="flex items-center gap-4">
         <div className="flex items-center gap-3">
           <button 
             onClick={handleExportJson}
@@ -294,7 +294,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       </div>
 
-      <div className="flex space-x-2 mb-8 bg-bg-card/50 p-1 rounded-full w-fit animate-slide-up">
+      <div className="flex space-x-2 mb-8 bg-bg-card/50 p-1 rounded-full w-fit">
         <button onClick={() => setActiveTab('papers')} className={`flex items-center px-6 py-2.5 rounded-full text-sm font-medium transition-colors tab-btn ${activeTab === 'papers' ? 'bg-bg-card text-text-primary shadow-lg' : 'text-text-secondary hover:text-text-primary'}`}>
           <FileText size={16} className="me-2" /> {t('admin.tab.content')}
         </button>

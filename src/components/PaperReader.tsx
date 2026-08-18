@@ -144,7 +144,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   const displayContent = isMarkdown ? rawContent : sanitizeHtml(rawContent);
 
   const scrollTo = useCallback((top: number, smooth = false) => {
-    const el = document.getElementById('reader-main');
+    const el = document.querySelector('.reader-root');
     if (!el) return;
     el.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
   }, []);
@@ -203,7 +203,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   // Scroll + keyboard listeners attached once.
   useEffect(() => {
     const handleScroll = () => {
-      const el = document.getElementById('reader-main');
+      const el = document.querySelector('.reader-root');
       if (el) {
         const currentTop = el.scrollTop;
         const scrollHeight = el.scrollHeight - el.clientHeight;
@@ -244,11 +244,12 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    const mainEl = document.getElementById('reader-main');
-    if (mainEl) mainEl.addEventListener('scroll', handleScroll, { passive: true });
+    const rootEl = document.querySelector('.reader-root');
+    if (rootEl) rootEl.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      if (mainEl) mainEl.removeEventListener('scroll', handleScroll);
+      const rootEl = document.querySelector('.reader-root');
+      if (rootEl) rootEl.removeEventListener('scroll', handleScroll);
     };
   }, [paper]);
 
@@ -362,10 +363,10 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
 
   const jumpToHeading = (id: string) => {
     const target = document.getElementById(id);
-    const mainEl = document.getElementById('reader-main');
-    if (!target || !mainEl) return;
-    const top = target.getBoundingClientRect().top - mainEl.getBoundingClientRect().top + mainEl.scrollTop;
-    mainEl.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    const rootEl = document.querySelector('.reader-root');
+    if (!target || !rootEl) return;
+    const top = target.getBoundingClientRect().top - rootEl.getBoundingClientRect().top + rootEl.scrollTop;
+    rootEl.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
     setActiveHeadingId(id);
     // Close the mobile outline drawer after jumping; keep the desktop outline open.
     if (window.innerWidth < 768) setShowOutline(false);
@@ -374,8 +375,8 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   const closeModal = (setter: (v: boolean) => void) => setter(false);
 
   return (
-    <div className={`reader-root fixed inset-0 z-[80] flex flex-col overflow-hidden ${isSepia ? 'reader-sepia' : ''} animate-fade-in`} style={{ backgroundColor: isSepia ? undefined : 'var(--bg-secondary)' }}>
-      {/* Progress Bar */}
+    <div className={`reader-root fixed inset-0 z-[80] flex flex-col overflow-y-auto ${isSepia ? 'reader-sepia' : ''} animate-fade-in`} style={{ backgroundColor: isSepia ? undefined : 'var(--bg-secondary)' }}>
+      {/* Progress Bar - stays fixed at top */}
       <div className="absolute top-0 start-0 h-1 bg-accent-indigo transition-all duration-150 z-50 progress-bar" style={{ width: `${readingProgress}%` }} />
 
       {focusMode && (
@@ -384,7 +385,8 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
         </button>
       )}
       
-      <header className="flex items-center justify-between px-4 md:px-6 py-3 bg-bg-primary/95 backdrop-blur-sm border-b border-border-subtle z-10 shrink-0 gap-3 no-print">
+      {/* Header now scrolls with content (no z-10 shrink-0) */}
+      <header className="flex items-center justify-between px-4 md:px-6 py-3 bg-bg-primary/95 backdrop-blur-sm border-b border-border-subtle gap-3 no-print shrink-0">
         <button 
           onClick={onClose}
           className="flex items-center px-4 py-3 text-sm font-medium text-text-secondary bg-bg-card hover:bg-bg-hover hover:text-text-primary rounded-full transition-colors shrink-0 min-h-[44px] min-w-[44px]"
@@ -529,9 +531,9 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
         </div>
 </header>
 
-            <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 relative">
         {showOutline && isMarkdown && headings.length > 0 && (
-          <aside className="w-64 md:w-72 shrink-0 overflow-y-auto border-e border-border-subtle bg-bg-primary/80 backdrop-blur-sm p-5 hidden md:block sidebar-enter no-print">
+          <aside className="w-64 md:w-72 shrink-0 border-e border-border-subtle bg-bg-primary/80 backdrop-blur-sm p-5 hidden md:block sidebar-enter no-print sticky top-0 h-screen overflow-y-auto">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-4">{t('reader.contents')}</h3>
             <nav className="space-y-0.5 text-sm">
               {headings.map((h, i) => (
@@ -552,7 +554,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
           </aside>
         )}
 
-        <main id="reader-main" className="flex-1 overflow-y-auto scroll-smooth" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+        <main id="reader-main" className="flex-1" style={{ backgroundColor: 'var(--bg-secondary)' }}>
           <article className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 sm:py-8 md:py-12">
             <header className="mb-10">
               <div className="flex flex-wrap gap-2 mb-4 items-center">

@@ -17,6 +17,7 @@ import { RequestPaperPage } from './components/RequestPaperPage';
 import { Preloader } from './components/Preloader';
 import { BalloonHeadline } from './components/BalloonHeadline';
 import SidebarAd from './components/SidebarAd';
+import BannerAd from './components/BannerAd';
 
 // Route-level code splitting — admin + auth screens load on demand.
 const AdminLogin = lazy(() => import('./components/AdminLogin').then(m => ({ default: m.AdminLogin })));
@@ -364,9 +365,6 @@ return (
                 const excerpt = paper.metaDescription
                   ? paper.metaDescription
                   : htmlToText(paper.content).slice(0, 180);
-                const progressKey = `philobrary_progress_${paper.slug}`;
-                const savedProgress = typeof localStorage !== 'undefined' ? Number(localStorage.getItem(progressKey) || 0) : 0;
-                const hasProgress = savedProgress > 0 && savedProgress < 100;
                 const prev = () => setFeaturedIndex(i => (i - 1 + featuredPapers.length) % featuredPapers.length);
                 const next = () => setFeaturedIndex(i => (i + 1) % featuredPapers.length);
                 return (
@@ -401,17 +399,6 @@ return (
                       <p className="text-text-secondary leading-relaxed line-clamp-3 flex-1 text-[15px] mb-4">
                         {excerpt}
                       </p>
-                      {hasProgress && (
-                        <div className="mb-2">
-                          <div className="flex items-center justify-between text-xs text-text-muted mb-1">
-                            <span>{t('reader.continueReading')}</span>
-                            <span>{Math.round(savedProgress)}%</span>
-                          </div>
-                          <div className="w-full h-1 bg-border-subtle rounded overflow-hidden">
-                            <div className="h-full bg-text-primary rounded transition-all" style={{ width: `${savedProgress}%` }} />
-                          </div>
-                        </div>
-                      )}
                       <div className="flex items-center justify-between mt-auto pt-2 border-t border-border-subtle">
                         <span className="text-xs text-text-muted">{paper.author}</span>
                         <div className="flex items-center gap-2 text-xs text-text-muted font-mono">
@@ -644,9 +631,6 @@ return (
               const excerpt = paper.metaDescription
                 ? paper.metaDescription
                 : htmlToText(paper.content).slice(0, viewMode === 'grid' ? 180 : 220);
-              const progressKey = `philobrary_progress_${paper.slug}`;
-              const savedProgress = typeof localStorage !== 'undefined' ? Number(localStorage.getItem(progressKey) || 0) : 0;
-              const hasProgress = savedProgress > 0 && savedProgress < 100;
 
               // Grid view card
               if (viewMode === 'grid') {
@@ -683,13 +667,6 @@ return (
                       <p className="text-text-secondary leading-relaxed line-clamp-3 flex-1 text-[15px] mb-4">
                         {excerpt}
                       </p>
-
-                      {/* Reading progress bar */}
-                      {hasProgress && (
-                        <div className="mb-4 h-1 bg-bg-hover rounded overflow-hidden" role="progressbar" aria-valuenow={Math.round(savedProgress)} aria-valuemin={0} aria-valuemax={100} aria-label={`Reading progress: ${Math.round(savedProgress)}%`}>
-                          <div className="h-full bg-text-primary rounded transition-all duration-500" style={{ width: `${Math.round(savedProgress)}%` }} />
-                        </div>
-                      )}
 
                       {/* Footer with author + stats */}
                       <div className="flex items-center justify-between pt-3 border-t border-border-subtle">
@@ -747,14 +724,6 @@ return (
                       <span className="flex items-center gap-1"><Eye size={10} /> {(paper.views || 0).toLocaleString()}</span>
                       <span className="flex items-center gap-1"><Bookmark size={10} /> {(paper.savedCount || 0).toLocaleString()}</span>
                       <span className="flex items-center gap-1"><Clock size={10} /> {paper.readingTimeMinutes || 0} {t('paper.minRead')}</span>
-                      {hasProgress && (
-                        <span className="flex items-center gap-1">
-                          <div className="w-16 h-1 bg-bg-hover rounded overflow-hidden">
-                            <div className="h-full bg-text-primary rounded" style={{ width: `${Math.round(savedProgress)}%` }} />
-                          </div>
-                          <span>{Math.round(savedProgress)}%</span>
-                        </span>
-                      )}
                     </div>
                   </div>
                 </article>
@@ -1358,6 +1327,8 @@ export default function App() {
         </div>
       </nav>
 
+      <BannerAd />
+
       <main className="flex-1 w-full">
         <Suspense fallback={<RouteFallback />}>
           <Routes>
@@ -1391,7 +1362,9 @@ export default function App() {
 </Suspense>
         </main>
 
-        <footer className="w-full border-t border-border-subtle mt-12">
+        <BannerAd />
+
+        <footer className="w-full border-t border-border-subtle mt-4">
           <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-[13px] font-mono text-text-muted uppercase tracking-wider">© 2026 Philobrary</p>
             <nav className="flex flex-wrap items-center gap-6 text-[13px]">

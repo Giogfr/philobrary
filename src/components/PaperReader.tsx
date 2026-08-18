@@ -110,8 +110,6 @@ const SPACING_VALUES: Record<LineSpacing, string> = {
 const FONT_SIZE_VALUES = { base: '1rem', lg: '1.125rem', xl: '1.3125rem' } as const;
 type FontSize = keyof typeof FONT_SIZE_VALUES;
 
-const PROGRESS_KEY = (slug: string) => `philobrary_progress_${slug}`;
-
 export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers, isBookmarked, onToggleBookmark, onClose }) => {
   const { language, setLanguage, theme, toggleTheme, translatedTitle, translatedContent, translatedFocusArea, translatedTagName, ensureContentTranslation, pendingTranslations, showToast } = useStore();
   const navigate = useNavigate();
@@ -132,7 +130,6 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   const [activeHeadingId, setActiveHeadingId] = useState<string>('');
   const [zoomedImg, setZoomedImg] = useState<string | null>(null);
   const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
-  const saveProgressTimer = useRef<number | null>(null);
 
   // Focus mode: toggle a body class that hides chrome and narrows the column.
   useEffect(() => {
@@ -165,18 +162,9 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
     headingsRef.current = headings;
   }, [headings]);
 
-  // Reset scroll position and restore reading progress only when the paper changes.
+  // Reset scroll position when the paper changes.
   useEffect(() => {
     scrollTo(0);
-
-    try {
-      const saved = Number(localStorage.getItem(PROGRESS_KEY(paper.slug)) || 0);
-      const mainEl = document.getElementById('reader-main');
-      if (mainEl && saved > 0 && saved < 100) {
-        const max = mainEl.scrollHeight - mainEl.clientHeight;
-        if (max > 0) mainEl.scrollTop = (saved / 100) * max;
-      }
-    } catch { /* ignore storage errors */ }
   }, [paper, scrollTo]);
 
   // Build the table of contents from the (possibly translated) content.
@@ -227,11 +215,6 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
           }
         });
 
-        // Throttled localStorage write of reading progress.
-        if (saveProgressTimer.current) window.clearTimeout(saveProgressTimer.current);
-        saveProgressTimer.current = window.setTimeout(() => {
-          try { localStorage.setItem(PROGRESS_KEY(paper.slug), String(Math.min(99, Math.max(0, progress)))); } catch { /* ignore */ }
-        }, 800);
       }
     };
 
@@ -252,7 +235,6 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       if (mainEl) mainEl.removeEventListener('scroll', handleScroll);
-      if (saveProgressTimer.current) window.clearTimeout(saveProgressTimer.current);
     };
   }, [paper]);
 

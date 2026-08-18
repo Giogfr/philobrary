@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Allow: /api/index.json
 
 Sitemap: https://philobrary.vercel.app/api/sitemap.xml

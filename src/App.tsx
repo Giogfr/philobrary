@@ -7,7 +7,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage
 import { useStore, isAdminEmail } from './store';
 import { Paper, Tag } from './types';
 import { Flag } from './components/Flag';
-import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon, LayoutGrid, LayoutDashboard, List, ArrowUp, ArrowLeft, X, Sparkles, Clock, History, PenLine } from 'lucide-react';
+import { Search, ShieldCheck, LogOut, FileText, Bookmark, SlidersHorizontal, ChevronDown, ChevronLeft, ChevronRight, User as UserIcon, Sun, Moon, Globe, CheckCircle, AlertCircle, Info, Eye, Library as LibraryIcon, LayoutGrid, LayoutDashboard, List, ArrowUp, ArrowLeft, X, Sparkles, Clock, History, PenLine, Menu, Menu as HamburgerMenu } from 'lucide-react';
 import { t, languageShortNames } from './i18n';
 import { setSeo, resetSeo, stripMarkdown, BASE_URL, setHreflangAlternates, createBreadcrumbJsonLd, addJsonLd } from './seo';
 import { htmlToText, generateSlug } from './utils';
@@ -362,7 +362,7 @@ return (
 
           {currentView === 'library' && featuredPapers.length > 0 && (
             <div className="relative w-full md:max-w-[400px] shrink-0 anim-enter-right anim-d5">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3 anim-fade-in anim-d4">
                 <span className="kicker">{t('library.suggestedForYou')}</span>
               </div>
               {(() => {
@@ -379,7 +379,7 @@ return (
                   <article
                     key={paper.id}
                     onClick={() => handleReadPaper(paper)}
-                    className="group relative flex flex-col border border-border-subtle rounded-lg overflow-hidden cursor-pointer transition-all duration-200 hover:border-line-2"
+                    className="group relative flex flex-col border border-border-subtle rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:border-line-2 hover:shadow-lg hover:-translate-y-1 animate-scale-in btn-press"
                   >
                     <div className="p-5 pt-4 flex items-start justify-between gap-3">
                       <div className="flex flex-wrap gap-1.5">
@@ -472,7 +472,7 @@ return (
                   <button
                     key={p.id}
                     onClick={() => navigate(`/p/${p.slug}`)}
-                    className={`group text-start border border-border-subtle rounded-lg p-4 hover:border-line-2 transition-colors anim-enter anim-d${Math.min(i + 6, 10)}`}
+                    className={`group text-start border border-border-subtle rounded-xl p-4 hover:border-line-2 hover:bg-bg-hover hover:-translate-y-0.5 transition-all duration-300 anim-enter anim-d${Math.min(i + 6, 10)} btn-press`}
                   >
                     <div className="kicker mb-2">{translatedFocusArea(p) || 'Philosophy'}</div>
                     <div className="font-medium text-text-primary leading-snug line-clamp-2 text-[15px]">{translatedTitle(p)}</div>
@@ -501,7 +501,7 @@ return (
               <button
                 onClick={() => { setSearchQuery(''); setDebouncedQuery(''); searchRef.current?.focus(); }}
                 aria-label={t('search.clear')}
-                className="absolute inset-y-0 end-0 flex items-center pe-4 text-text-muted hover:text-text-primary"
+                className="absolute inset-y-0 end-0 flex items-center pe-4 text-text-muted hover:text-text-primary btn-press"
               >
                 <X size={18} />
               </button>
@@ -513,12 +513,12 @@ return (
           {/* Sort + View Mode - side by side on desktop, stacked on mobile */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <button onClick={() => setShowSortDropdown(!showSortDropdown)} aria-haspopup="listbox" aria-expanded={showSortDropdown} className="w-full flex items-center justify-between px-4 py-3.5 bg-bg-card border border-border-subtle text-text-primary rounded-xl text-base hover:border-line-2 transition-colors">
+              <button onClick={() => setShowSortDropdown(!showSortDropdown)} aria-haspopup="listbox" aria-expanded={showSortDropdown} className="w-full flex items-center justify-between px-4 py-3.5 bg-bg-card border border-border-subtle text-text-primary rounded-xl text-base hover:border-line-2 transition-colors btn-press">
                 <div className="flex items-center gap-2"><SlidersHorizontal size={16} className="text-text-muted" /> <span className="hidden sm:inline text-text-muted text-sm">{t('sort.label')}</span> <span className="text-sm">{t(SORT_LABEL_KEY[sortBy])}</span></div>
                 <ChevronDown size={16} className="text-text-muted" />
               </button>
               {showSortDropdown && (
-                <div className="absolute top-full mt-1 w-full bg-bg-card border border-border-subtle rounded-lg overflow-hidden z-20" role="listbox">
+                <div className="absolute top-full mt-1 w-full bg-bg-card border border-border-subtle rounded-lg overflow-hidden z-20 animate-fade-in animate-slide-up" role="listbox">
                   {(['newest', 'oldest', 'views', 'saves', 'updated', 'alpha'] as SortOption[]).map(opt => (
                     <button key={opt} onClick={() => { setSortBy(opt); setShowSortDropdown(false); }} className={`w-full text-start px-4 py-3 text-sm hover:bg-bg-hover transition-colors ${sortBy === opt ? 'text-text-primary bg-bg-secondary' : 'text-text-secondary'}`}>
                       {t(SORT_LABEL_KEY[opt])}
@@ -529,10 +529,10 @@ return (
             </div>
 
             <div className="flex items-center bg-bg-card border border-border-subtle rounded-xl p-1 shrink-0" role="group" aria-label={t('library.view')}>
-              <button onClick={() => setViewMode('grid')} aria-pressed={viewMode === 'grid'} className={`p-3 rounded transition-colors ${viewMode === 'grid' ? 'bg-bg-hover text-text-primary' : 'text-text-muted hover:text-text-primary'}`} title={t('library.viewGrid')}>
+              <button onClick={() => setViewMode('grid')} aria-pressed={viewMode === 'grid'} className={`p-3 rounded transition-all btn-press ${viewMode === 'grid' ? 'bg-bg-hover text-text-primary scale-105' : 'text-text-muted hover:text-text-primary'}`} title={t('library.viewGrid')}>
                 <LayoutGrid size={18} />
               </button>
-              <button onClick={() => setViewMode('list')} aria-pressed={viewMode === 'list'} className={`p-3 rounded transition-colors ${viewMode === 'list' ? 'bg-bg-hover text-text-primary' : 'text-text-muted hover:text-text-primary'}`} title={t('library.viewList')}>
+              <button onClick={() => setViewMode('list')} aria-pressed={viewMode === 'list'} className={`p-3 rounded transition-all btn-press ${viewMode === 'list' ? 'bg-bg-hover text-text-primary scale-105' : 'text-text-muted hover:text-text-primary'}`} title={t('library.viewList')}>
                 <List size={18} />
               </button>
             </div>
@@ -550,13 +550,14 @@ return (
             >
               {t('filter.all')}
             </button>
-            {tags.slice(0, showAllTags || selectedTagId !== 'All' ? tags.length : 8).map(tag => (
+            {tags.slice(0, showAllTags || selectedTagId !== 'All' ? tags.length : 8).map((tag, i) => (
               <button
                 key={tag.id}
                 id={`tag-chip-${tag.id}`}
                 onClick={() => setSelectedTagId(tag.id)}
                 aria-pressed={selectedTagId === tag.id}
-                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-all tag-hover shrink-0 ${selectedTagId === tag.id ? 'bg-text-primary text-bg-primary border-text-primary' : 'text-text-secondary border-border-subtle hover:border-line-2 hover:text-text-primary'}`}
+                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-all tag-hover shrink-0 animate-fade-in ${selectedTagId === tag.id ? 'bg-text-primary text-bg-primary border-text-primary' : 'text-text-secondary border-border-subtle hover:border-line-2 hover:text-text-primary'}`}
+                style={{ animationDelay: `${i * 30}ms` }}
               >
                 {translatedTagName(tag)}
               </button>
@@ -564,7 +565,7 @@ return (
             {!showAllTags && tags.length > 8 && (
               <button
                 onClick={() => setShowAllTags(true)}
-                className="px-4 py-2 text-sm font-medium rounded-lg border border-border-subtle text-text-secondary hover:border-line-2 shrink-0"
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-border-subtle text-text-secondary hover:border-line-2 shrink-0 btn-press"
               >
                 +{tags.length - 8} {t('filter.more')}
               </button>
@@ -572,7 +573,7 @@ return (
             {showAllTags && tags.length > 8 && (
               <button
                 onClick={() => setShowAllTags(false)}
-                className="px-4 py-2 text-sm font-medium rounded-lg border border-border-subtle text-text-secondary hover:border-line-2 shrink-0"
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-border-subtle text-text-secondary hover:border-line-2 shrink-0 btn-press"
               >
                 {t('filter.less')}
               </button>
@@ -585,13 +586,13 @@ return (
                 value={selectedAuthor}
                 onChange={e => setSelectedAuthor(e.target.value)}
                 aria-label={t('library.author')}
-                className="px-3 py-2 bg-bg-card border border-border-subtle text-text-secondary rounded-lg text-sm focus:outline-none min-w-[140px]"
+                className="px-3 py-2 bg-bg-card border border-border-subtle text-text-secondary rounded-lg text-sm focus:outline-none min-w-[140px] transition-colors"
               >
                 <option value="All">{t('library.allAuthors')}</option>
                 {authors.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             )}
-            <span className="text-sm font-mono text-text-muted whitespace-nowrap">
+            <span className="text-sm font-mono text-text-muted whitespace-nowrap animate-pulse-slow">
               {filteredPapers.length} {filteredPapers.length === 1 ? t('library.paper') : t('library.papers')}
             </span>
           </div>
@@ -649,7 +650,7 @@ return (
                   <article
                     key={paper.id}
                     onClick={() => handleReadPaper(paper)}
-                    className={`group relative flex flex-col border border-border-subtle rounded-lg overflow-hidden cursor-pointer transition-all duration-200 hover:border-line-2 animate-scale-in stagger-${Math.min(index + 1, 12)}`}
+                    className={`group relative flex flex-col border border-border-subtle rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:border-line-2 hover:shadow-lg hover:-translate-y-1 animate-scale-in stagger-${Math.min(index + 1, 12)} btn-press`}
                   >
                     {/* Header with tags + bookmark */}
                     <div className="p-5 pt-4 flex items-start justify-between gap-3">
@@ -697,7 +698,7 @@ return (
                 <article
                   key={paper.id}
                   onClick={() => handleReadPaper(paper)}
-                  className={`group relative flex flex-col sm:flex-row sm:items-start gap-4 border border-border-subtle rounded-lg p-5 cursor-pointer transition-all duration-200 hover:border-line-2 animate-slide-in-left stagger-${Math.min(index + 1, 8)} list-item`}
+                  className={`group relative flex flex-col sm:flex-row sm:items-start gap-4 border border-border-subtle rounded-xl p-5 cursor-pointer transition-all duration-300 hover:border-line-2 hover:bg-bg-hover animate-slide-in-left stagger-${Math.min(index + 1, 8)} list-item btn-press`}
                 >
                   <div className="flex-1 min-w-0">
                     {/* Tags + bookmark row */}
@@ -749,7 +750,7 @@ return (
       {showBackToTop && (
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="fixed bottom-6 end-6 z-40 p-3 bg-bg-card border border-border-subtle text-text-secondary hover:text-text-primary rounded-lg transition-colors"
+          className="fixed bottom-6 end-6 z-40 p-3 bg-bg-card border border-border-subtle text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded-lg transition-all animate-bounce-in btn-press"
           aria-label={t('reader.top')}
         >
           <ArrowUp size={18} />
@@ -1097,11 +1098,11 @@ function TagView() {
                       </span>
                     ))}
                   </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
-                    aria-label={t('reader.bookmark')}
-                    className={`flex-shrink-0 p-2 rounded-xl transition-all duration-200 ${isSaved ? 'text-accent-indigo bg-accent-indigo/10' : 'text-text-muted hover:text-text-primary hover:bg-bg-hover'}`}
-                  >
+<button
+                        onClick={(e) => { e.stopPropagation(); toggleBookmark(paper.id); }}
+                        aria-label={t('reader.bookmark')}
+                        className={`flex-shrink-0 p-2 rounded transition-all duration-150 btn-press ${isSaved ? 'text-text-primary' : 'text-text-muted hover:text-text-primary'}`}
+                      >
                     <Bookmark size={18} fill={isSaved ? "currentColor" : "none"} />
                   </button>
                 </div>
@@ -1234,6 +1235,7 @@ export default function App() {
   } = useStore();
   
   const [showLangSelector, setShowLangSelector] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -1271,24 +1273,25 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-bg-primary selection:bg-accent-indigo/30 selection:text-text-primary pb-28">
       <a href="#main-content" className="skip-link">{t('skipLink.main')}</a>
       <Preloader />
-      <nav className="sticky top-0 z-30 bg-bg-primary/80 backdrop-blur-xl border-b border-border-subtle">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between gap-2">
-          <Link to="/" className="flex items-center gap-2.5 cursor-pointer shrink-0 hover:opacity-80 transition-opacity">
-            <span className="w-2 h-2 rounded-full bg-text-primary block"></span>
+      <nav className="sticky top-0 z-30 bg-bg-primary/80 backdrop-blur-xl border-b border-border-subtle animate-slide-down">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex items-center justify-between gap-3">
+          <Link to="/" className="flex items-center gap-2.5 cursor-pointer shrink-0 hover:opacity-80 transition-opacity animate-fade-in">
+            <span className="w-2 h-2 rounded-full bg-text-primary block animate-bounce-in" />
             <span className="text-[17px] font-bold text-text-primary tracking-tight">Philobrary</span>
           </Link>
 
-          <div className="flex items-center gap-1 md:gap-3 overflow-x-auto no-scrollbar">
-            <Link to="/" className={`px-3 md:px-4 py-2 text-[13px] font-medium rounded-full transition-colors shrink-0 border ${location.pathname === '/' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-              <LibraryIcon size={14} className="md:hidden me-1.5 inline" />
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-1.5">
+            <Link to="/" className={`px-4 py-2 text-sm font-medium rounded-full transition-all shrink-0 border ${location.pathname === '/' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-line-2'}`}>
+              <LibraryIcon size={14} className="me-1.5 inline" />
               <span>{t('nav.library')}</span>
             </Link>
-            <Link to="/saved" className={`px-3 md:px-4 py-2 text-[13px] font-medium rounded-full transition-colors shrink-0 border ${location.pathname === '/saved' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-              <Bookmark size={14} className="md:hidden me-1.5 inline" />
+            <Link to="/saved" className={`px-4 py-2 text-sm font-medium rounded-full transition-all shrink-0 border ${location.pathname === '/saved' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-line-2'}`}>
+              <Bookmark size={14} className="me-1.5 inline" />
               <span>{t('nav.saved')}</span>
             </Link>
-            <Link to="/request" className={`px-3 md:px-4 py-2 text-[13px] font-medium rounded-full transition-colors shrink-0 border ${location.pathname === '/request' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-              <PenLine size={14} className="md:hidden me-1.5 inline" />
+            <Link to="/request" className={`px-4 py-2 text-sm font-medium rounded-full transition-all shrink-0 border ${location.pathname === '/request' ? 'border-text-primary text-text-primary' : 'border-transparent text-text-secondary hover:text-text-primary hover:border-line-2'}`}>
+              <PenLine size={14} className="me-1.5 inline" />
               <span>{t('nav.request')}</span>
             </Link>
 
@@ -1296,43 +1299,128 @@ export default function App() {
               onClick={toggleTheme}
               title={theme === 'dark' ? t('theme.light') : t('theme.dark')}
               aria-label={theme === 'dark' ? t('theme.light') : t('theme.dark')}
-              className="p-2.5 text-text-secondary hover:text-text-primary rounded-full transition-colors shrink-0"
+              className="p-2.5 text-text-secondary hover:text-text-primary rounded-full transition-colors shrink-0 theme-toggle"
             >
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
 
             <button
               onClick={() => setShowLangSelector(true)}
-              className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-text-secondary hover:text-text-primary rounded-full transition-colors border border-border-subtle shrink-0"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary rounded-full transition-colors border border-border-subtle shrink-0"
             >
               <Flag code={language} className="w-4 h-4" />
               <span className="hidden sm:inline">{languageShortNames[language]}</span>
             </button>
             
-            <div className="w-px h-5 bg-border-subtle mx-0.5 shrink-0"></div>
+            <div className="w-px h-5 bg-border-subtle mx-1 shrink-0" />
             {user.isAuthenticated ? (
               <>
                 <Link to="/profile" className="p-2.5 text-text-secondary hover:text-text-primary rounded-full transition-colors shrink-0" title={t('nav.profile')} aria-label={t('nav.profile')}>
-                  <UserIcon size={16} />
+                  <UserIcon size={18} />
                 </Link>
                 {isAdminEmail(user.email) && (
-                  <Link to="/admin" className={`px-3 md:px-4 py-2 text-[13px] font-medium transition-colors rounded-full shrink-0 border ${location.pathname === '/admin' ? 'border-text-primary text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
+                  <Link to="/admin" className={`px-4 py-2 text-sm font-medium transition-colors rounded-full shrink-0 border ${location.pathname === '/admin' ? 'border-text-primary text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
                     <ShieldCheck size={14} className="me-1.5 inline" />
-                    <span className="hidden md:inline">{t('nav.admin')}</span>
+                    <span>{t('nav.admin')}</span>
                   </Link>
                 )}
                 <button onClick={() => { logout(); navigate('/'); }} className="p-2.5 text-text-secondary hover:text-text-primary rounded-full transition-colors shrink-0" title={t('nav.signout')} aria-label={t('nav.signout')}>
-                  <LogOut size={16} />
+                  <LogOut size={18} />
                 </button>
               </>
             ) : (
-              <Link to="/login" className="btn-fill px-5 py-2 text-[13px] font-semibold rounded-full transition-all shrink-0">
+              <Link to="/login" className="btn-fill px-5 py-2 text-sm font-semibold rounded-full transition-all shrink-0">
                 {t('nav.signin')}
               </Link>
             )}
           </div>
+
+          {/* Mobile hamburger button */}
+          <button
+            onClick={() => setShowMobileMenu(true)}
+            className="md:hidden p-2 text-text-secondary hover:text-text-primary rounded-lg transition-colors shrink-0"
+            aria-label="Open menu"
+            aria-expanded={showMobileMenu}
+          >
+            <HamburgerMenu size={24} />
+          </button>
         </div>
       </nav>
+
+      {/* Mobile drawer */}
+      {showMobileMenu && (
+        <div className="md:hidden fixed inset-0 z-[50] flex flex-col bg-bg-primary animate-fade-in">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
+            <Link to="/" className="flex items-center gap-2.5 cursor-pointer shrink-0 hover:opacity-80 transition-opacity">
+              <span className="w-2 h-2 rounded-full bg-text-primary block" />
+              <span className="text-[17px] font-bold text-text-primary tracking-tight">Philobrary</span>
+            </Link>
+            <button
+              onClick={() => setShowMobileMenu(false)}
+              className="p-2 text-text-secondary hover:text-text-primary rounded-lg transition-colors"
+              aria-label="Close menu"
+            >
+              <X size={24} />
+            </button>
+          </div>
+          <nav className="flex-1 overflow-y-auto p-4 space-y-2 animate-slide-in-right">
+            <Link to="/" onClick={() => setShowMobileMenu(false)} className={`flex items-center gap-3 px-4 py-3.5 text-base font-medium rounded-xl transition-all ${location.pathname === '/' ? 'bg-accent-indigo/10 text-accent-indigo border border-accent-indigo/20' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'}`}>
+              <LibraryIcon size={20} />
+              <span>{t('nav.library')}</span>
+            </Link>
+            <Link to="/saved" onClick={() => setShowMobileMenu(false)} className={`flex items-center gap-3 px-4 py-3.5 text-base font-medium rounded-xl transition-all ${location.pathname === '/saved' ? 'bg-accent-indigo/10 text-accent-indigo border border-accent-indigo/20' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'}`}>
+              <Bookmark size={20} />
+              <span>{t('nav.saved')}</span>
+            </Link>
+            <Link to="/request" onClick={() => setShowMobileMenu(false)} className={`flex items-center gap-3 px-4 py-3.5 text-base font-medium rounded-xl transition-all ${location.pathname === '/request' ? 'bg-accent-indigo/10 text-accent-indigo border border-accent-indigo/20' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'}`}>
+              <PenLine size={20} />
+              <span>{t('nav.request')}</span>
+            </Link>
+            
+            <div className="pt-2 border-t border-border-subtle" />
+            
+            <button
+              onClick={toggleTheme}
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-base font-medium text-text-secondary hover:text-text-primary rounded-xl transition-colors hover:bg-bg-hover"
+            >
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+              <span>{theme === 'dark' ? t('theme.light') : t('theme.dark')}</span>
+            </button>
+            
+            <button
+              onClick={() => { setShowLangSelector(true); setShowMobileMenu(false); }}
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-base font-medium text-text-secondary hover:text-text-primary rounded-xl transition-colors hover:bg-bg-hover"
+            >
+              <Flag code={language} className="w-5 h-5" />
+              <span>{languageShortNames[language]}</span>
+            </button>
+
+            <div className="pt-2 border-t border-border-subtle" />
+            {user.isAuthenticated ? (
+              <>
+                <Link to="/profile" onClick={() => setShowMobileMenu(false)} className="w-full flex items-center gap-3 px-4 py-3.5 text-base font-medium text-text-secondary hover:text-text-primary rounded-xl transition-colors hover:bg-bg-hover">
+                  <UserIcon size={20} />
+                  <span>{t('nav.profile')}</span>
+                </Link>
+                {isAdminEmail(user.email) && (
+                  <Link to="/admin" onClick={() => setShowMobileMenu(false)} className={`w-full flex items-center gap-3 px-4 py-3.5 text-base font-medium rounded-xl transition-colors ${location.pathname === '/admin' ? 'bg-accent-indigo/10 text-accent-indigo border border-accent-indigo/20' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'}`}>
+                    <ShieldCheck size={20} />
+                    <span>{t('nav.admin')}</span>
+                  </Link>
+                )}
+                <button onClick={() => { logout(); navigate('/'); setShowMobileMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3.5 text-base font-medium text-text-secondary hover:text-text-primary rounded-xl transition-colors hover:bg-bg-hover">
+                  <LogOut size={20} />
+                  <span>{t('nav.signout')}</span>
+                </button>
+              </>
+            ) : (
+              <Link to="/login" onClick={() => setShowMobileMenu(false)} className="w-full flex items-center justify-center gap-2 px-4 py-3.5 text-base font-semibold rounded-xl transition-all btn-fill">
+                {t('nav.signin')}
+              </Link>
+            )}
+          </nav>
+        </div>
+      )}
 
       <main className="flex-1 w-full">
         <Suspense fallback={<RouteFallback />}>

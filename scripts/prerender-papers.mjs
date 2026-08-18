@@ -565,7 +565,7 @@ ${JSON.stringify({
           htmlToText(translatedContent || '').slice(0, 160)).replace(/\s+/g, ' ').trim();
         const url = lang === 'en' ? `${BASE}/p/${slug}` : `${BASE}/${lang}/p/${slug}`;
         const title = `${translatedTitle} \u2014 ${SITE_NAME}`;
-        const ogImage = `${BASE}/og/${slug}.png`;
+        const ogImage = `${BASE}/api/og.png?slug=${slug}`;
         const published = new Date(paper.publishedAt || paper.createdAt).toISOString();
         const modified = paper.updatedAt ? new Date(paper.updatedAt).toISOString() : published;
 

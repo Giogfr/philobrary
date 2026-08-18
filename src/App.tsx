@@ -1239,6 +1239,18 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (showMobileMenu) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showMobileMenu]);
+
   // Scroll to top on route change
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -1349,21 +1361,28 @@ export default function App() {
 
       {/* Mobile drawer */}
       {showMobileMenu && (
-        <div className="md:hidden fixed inset-0 z-[50] flex flex-col bg-bg-primary animate-fade-in">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
-            <Link to="/" className="flex items-center gap-2.5 cursor-pointer shrink-0 hover:opacity-80 transition-opacity">
-              <span className="w-2 h-2 rounded-full bg-text-primary block" />
-              <span className="text-[17px] font-bold text-text-primary tracking-tight">Philobrary</span>
-            </Link>
-            <button
-              onClick={() => setShowMobileMenu(false)}
-              className="p-2 text-text-secondary hover:text-text-primary rounded-lg transition-colors"
-              aria-label="Close menu"
-            >
-              <X size={24} />
-            </button>
-          </div>
-          <nav className="flex-1 overflow-y-auto p-4 space-y-2 animate-slide-in-right">
+        <div className="md:hidden fixed inset-0 z-[50] flex flex-col animate-fade-in">
+          {/* Backdrop - blocks interaction with background */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
+            onClick={() => setShowMobileMenu(false)}
+            aria-hidden="true"
+          />
+          <div className="relative flex flex-col h-full bg-bg-primary z-10 animate-slide-in-right">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle shrink-0">
+              <Link to="/" className="flex items-center gap-2.5 cursor-pointer shrink-0 hover:opacity-80 transition-opacity">
+                <span className="w-2 h-2 rounded-full bg-text-primary block" />
+                <span className="text-[17px] font-bold text-text-primary tracking-tight">Philobrary</span>
+              </Link>
+              <button
+                onClick={() => setShowMobileMenu(false)}
+                className="p-2 text-text-secondary hover:text-text-primary rounded-lg transition-colors"
+                aria-label="Close menu"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <nav className="flex-1 overflow-y-auto p-4 space-y-2">
             <Link to="/" onClick={() => setShowMobileMenu(false)} className={`flex items-center gap-3 px-4 py-3.5 text-base font-medium rounded-xl transition-all ${location.pathname === '/' ? 'bg-accent-indigo/10 text-accent-indigo border border-accent-indigo/20' : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'}`}>
               <LibraryIcon size={20} />
               <span>{t('nav.library')}</span>
@@ -1397,7 +1416,7 @@ export default function App() {
 
             <div className="pt-2 border-t border-border-subtle" />
             {user.isAuthenticated ? (
-              <>
+              <div>
                 <Link to="/profile" onClick={() => setShowMobileMenu(false)} className="w-full flex items-center gap-3 px-4 py-3.5 text-base font-medium text-text-secondary hover:text-text-primary rounded-xl transition-colors hover:bg-bg-hover">
                   <UserIcon size={20} />
                   <span>{t('nav.profile')}</span>
@@ -1412,13 +1431,14 @@ export default function App() {
                   <LogOut size={20} />
                   <span>{t('nav.signout')}</span>
                 </button>
-              </>
+              </div>
             ) : (
               <Link to="/login" onClick={() => setShowMobileMenu(false)} className="w-full flex items-center justify-center gap-2 px-4 py-3.5 text-base font-semibold rounded-xl transition-all btn-fill">
                 {t('nav.signin')}
               </Link>
             )}
           </nav>
+        </div>
         </div>
       )}
 

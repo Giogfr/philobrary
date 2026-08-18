@@ -26,10 +26,15 @@ const CACHE_FILE = resolve(ROOT, 'scripts/.cache/translations.json');
 const DB_URL = 'https://sheikh-gios-library-default-rtdb.europe-west1.firebasedatabase.app';
 const LANGS = Object.keys(dictionaries) as (keyof typeof dictionaries)[];
 
+// Salt bumped when the translation pipeline changes (e.g. markdown emphasis
+// spacing fix) so stale cached translations are invalidated and re-translated.
+const HASH_SALT = 'v3';
+
 function hash(str: string) {
   let h = 0;
-  for (let i = 0; i < str.length; i++) {
-    h = (h << 5) - h + str.charCodeAt(i);
+  const salted = HASH_SALT + str;
+  for (let i = 0; i < salted.length; i++) {
+    h = (h << 5) - h + salted.charCodeAt(i);
     h |= 0;
   }
   return (h >>> 0).toString(36);

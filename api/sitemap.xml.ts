@@ -78,7 +78,7 @@ ${lastmod ? `    <lastmod>${lastmod}</lastmod>\n` : ''}    <changefreq>weekly</c
     <priority>0.8</priority>
 ${alternates}
     <image:image>
-      <image:loc>${BASE}/api/og.png?slug=${esc(p.slug)}</image:loc>
+      <image:loc>${BASE}/assets/logo-512.png</image:loc>
       <image:title>${esc(p.title || '')}</image:title>
     </image:image>
   </url>`);

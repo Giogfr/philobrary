@@ -113,7 +113,7 @@ export function setSeo({ title, description, url, ogImage, type = 'website', key
   setMeta('property', 'og:image', image);
   setMeta('property', 'og:image:alt', description?.slice(0, 200) || title);
   setMeta('property', 'og:locale', ogLocale());
-  setMeta('name', 'twitter:card', ogImage ? 'summary_large_image' : 'summary');
+  setMeta('name', 'twitter:card', 'summary');
   setMeta('name', 'twitter:title', title);
   setMeta('name', 'twitter:description', description || '');
   setMeta('name', 'twitter:image', image);

@@ -1160,7 +1160,7 @@ function PublicPaperView() {
       title: paper.title,
       description: paper.metaDescription || stripMarkdown(paper.content).slice(0, 160),
       url: paperUrl,
-      ogImage: paper.ogImage || `${BASE_URL}/api/og.png?slug=${paper.slug}`,
+      ogImage: paper.ogImage || `${BASE_URL}/assets/logo-512.png`,
       type: 'article',
       keywords: paper.keywords,
       article: {
@@ -1175,7 +1175,7 @@ function PublicPaperView() {
         '@type': 'Article',
         headline: paper.title,
         description: (paper.metaDescription || stripMarkdown(paper.content)).slice(0, 200),
-        image: paper.ogImage || `${BASE_URL}/api/og.png?slug=${paper.slug}`,
+        image: paper.ogImage || `${BASE_URL}/assets/logo-512.png`,
         keywords: paper.keywords,
         articleSection: paper.focusArea || 'Philosophy',
         author: { '@type': 'Person', name: paper.author },

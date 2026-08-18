@@ -4581,27 +4581,49 @@ export async function translateShortLabel(label: string, targetLang: SupportedLa
 const PLACEHOLDER_RE = /(`[^`]*`|\[[^\]]*\]\([^)]*\)|https?:\/\/\S+|\*\*|~~|\*|__)/g;
 const BRAND_RE = /Philobrary|Sheikh Gio/g;
 
-function protectInline(text: string): { fenced: string; originals: string[] } {
+function protectInline(text: string): { fenced: string; originals: string[]; emphSide: Array<'open' | 'close' | null> } {
   const originals: string[] = [];
+  const emphSide: Array<'open' | 'close' | null> = [];
+  const openState: Record<string, boolean> = {};
   let index = 0;
   const fenced = text.replace(PLACEHOLDER_RE, (match) => {
+    const isEmph = /^(\*\*|~~|\*|__)$/.test(match);
+    let side: 'open' | 'close' | null = null;
+    if (isEmph) {
+      openState[match] = !openState[match];
+      side = openState[match] ? 'open' : 'close';
+    }
     originals.push(match);
+    emphSide.push(side);
     return `§${index++}§`;
   }).replace(BRAND_RE, (match) => {
     originals.push(match);
+    emphSide.push(null);
     return `§${index++}§`;
   });
-  return { fenced, originals };
+  return { fenced, originals, emphSide };
 }
 
-function restoreInline(fenced: string, originals: string[]): string {
-  return fenced.replace(/§(\d+)§/g, (_m, i) => originals[Number(i)] ?? '');
+function restoreInline(fenced: string, originals: string[], emphSide: Array<'open' | 'close' | null>): string {
+  let out = fenced;
+  // Google Translate inserts spaces around the § placeholders, which breaks
+  // markdown emphasis (e.g. "** text **"). For opening markers strip the
+  // whitespace after the placeholder; for closing markers strip the
+  // whitespace before it — keeping any legitimate spacing outside the markers.
+  for (let i = 0; i < originals.length; i++) {
+    if (emphSide[i] === 'open') {
+      out = out.replace(new RegExp(`§${i}§\\s+`), `§${i}§`);
+    } else if (emphSide[i] === 'close') {
+      out = out.replace(new RegExp(`\\s+§${i}§`), `§${i}§`);
+    }
+  }
+  return out.replace(/§(\d+)§/g, (_m, i) => originals[Number(i)] ?? '');
 }
 
 async function translateTextLine(text: string, targetLang: SupportedLanguage): Promise<string> {
-  const { fenced, originals } = protectInline(text);
+  const { fenced, originals, emphSide } = protectInline(text);
   const translated = await googleTranslate(fenced, targetLang);
-  return restoreInline(translated, originals);
+  return restoreInline(translated, originals, emphSide);
 }
 
 const MAX_CHUNK = 3500;
@@ -4645,6 +4667,7 @@ export async function translatePaperContent(content: string, targetLang: Support
     }
 
     // Table: translate each cell individually, keep the delimiter row as-is.
+    // (Batching cells with a separator makes Google drop long segments.)
     if (lines.length > 1 && lines.every(l => l.includes('|'))) {
       const rows: string[] = [];
       for (const line of lines) {
@@ -4653,20 +4676,13 @@ export async function translatePaperContent(content: string, targetLang: Support
           continue;
         }
         const cells = line.split('|');
-        const vals: string[] = [];
-        const toTranslate: { idx: number; text: string }[] = [];
-        cells.forEach((cell, i) => {
+        const translatedCells: string[] = [];
+        for (const cell of cells) {
           const t = cell.trim();
-          if (t) { vals.push(t); toTranslate.push({ idx: i, text: t }); }
-          else vals.push('');
-        });
-        if (toTranslate.length > 0) {
-          const batch = toTranslate.map(c => c.text).join(BATCH_SEP);
-          const translated = await translateChunks(batch, targetLang);
-          const parts = translated.split(BATCH_SEP);
-          toTranslate.forEach((c, j) => { vals[c.idx] = parts[j] || c.text; });
+          if (t) translatedCells.push(await translateChunks(t, targetLang));
+          else translatedCells.push(cell);
         }
-        rows.push(vals.join('|'));
+        rows.push(translatedCells.join('|'));
       }
       out.push(rows.join('\n'));
       continue;

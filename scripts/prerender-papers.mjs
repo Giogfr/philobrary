@@ -75,22 +75,39 @@ const PLACEHOLDER_RE = /(`[^`]*`|\[[^\]]*\]\([^)]*\)|https?:\/\/\S+|<[^>]*>|\*\*
 
 function protectInline(text) {
   const originals = [];
+  const emphSide = [];
+  const openState = {};
   let index = 0;
   const fenced = text.replace(PLACEHOLDER_RE, (match) => {
+    const isEmph = /^(\*\*|~~|\*|__)$/.test(match);
+    let side = null;
+    if (isEmph) {
+      openState[match] = !openState[match];
+      side = openState[match] ? 'open' : 'close';
+    }
     originals.push(match);
+    emphSide.push(side);
     return `\u00A7${index++}\u00A7`;
   });
-  return { fenced, originals };
+  return { fenced, originals, emphSide };
 }
 
-function restoreInline(fenced, originals) {
-  return fenced.replace(/\u00A7(\d+)\u00A7/g, (_m, i) => originals[Number(i)] ?? '');
+function restoreInline(fenced, originals, emphSide) {
+  let out = fenced;
+  for (let i = 0; i < originals.length; i++) {
+    if (emphSide[i] === 'open') {
+      out = out.replace(new RegExp(`\u00A7${i}\u00A7\\s+`), `\u00A7${i}\u00A7`);
+    } else if (emphSide[i] === 'close') {
+      out = out.replace(new RegExp(`\\s+\u00A7${i}\u00A7`), `\u00A7${i}\u00A7`);
+    }
+  }
+  return out.replace(/\u00A7(\d+)\u00A7/g, (_m, i) => originals[Number(i)] ?? '');
 }
 
 async function translateTextLine(text, targetLang) {
-  const { fenced, originals } = protectInline(text);
+  const { fenced, originals, emphSide } = protectInline(text);
   const translated = await googleTranslate(fenced, targetLang);
-  return restoreInline(translated, originals);
+  return restoreInline(translated, originals, emphSide);
 }
 
 const MAX_CHUNK = 3500;
@@ -158,10 +175,16 @@ async function translatePaperContent(content, targetLang) {
 // Translation cache (scripts/.cache/translations.json)
 // ---------------------------------------------------------------------------
 
+// Salt bumped when the translation pipeline changes (e.g. markdown emphasis
+// spacing fix) so stale cached translations are invalidated and re-translated.
+// MUST stay in sync with scripts/generate-translations.mts.
+const HASH_SALT = 'v3';
+
 function hash(str) {
   let h = 0;
-  for (let i = 0; i < str.length; i++) {
-    h = (h << 5) - h + str.charCodeAt(i);
+  const salted = HASH_SALT + str;
+  for (let i = 0; i < salted.length; i++) {
+    h = (h << 5) - h + salted.charCodeAt(i);
     h |= 0;
   }
   return (h >>> 0).toString(36);
@@ -348,10 +371,10 @@ function buildMeta(baseHtml, {
   html = html.replace(/(<meta property="og:description" content=")[^"]*(")/, `$1${esc(description)}$2`);
   html = html.replace(/(<meta property="og:url" content=")[^"]*(")/, `$1${esc(url)}$2`);
   html = html.replace(/(<meta property="og:image" content=")[^"]*(")/, `$1${esc(ogImage)}$2`);
-  html = html.replace(/(<meta property="og:image:width" content=")[^"]*(")/, '$11200$2');
-  html = html.replace(/(<meta property="og:image:height" content=")[^"]*(")/, '$1630$2');
+  html = html.replace(/(<meta property="og:image:width" content=")[^"]*(")/, '$1512$2');
+  html = html.replace(/(<meta property="og:image:height" content=")[^"]*(")/, '$1512$2');
   html = html.replace(/(<meta property="og:locale" content=")[^"]*(")/, `$1${locale}$2`);
-  html = html.replace(/(<meta name="twitter:card" content=")[^"]*(")/, '$1summary_large_image$2');
+  html = html.replace(/(<meta name="twitter:card" content=")[^"]*(")/, '$1summary$2');
   html = html.replace(/(<meta name="twitter:title" content=")[^"]*(")/, `$1${esc(title)}$2`);
   html = html.replace(/(<meta name="twitter:description" content=")[^"]*(")/, `$1${esc(description)}$2`);
   html = html.replace(/(<meta name="twitter:image" content=")[^"]*(")/, `$1${esc(ogImage)}$2`);
@@ -565,7 +588,7 @@ ${JSON.stringify({
           htmlToText(translatedContent || '').slice(0, 160)).replace(/\s+/g, ' ').trim();
         const url = lang === 'en' ? `${BASE}/p/${slug}` : `${BASE}/${lang}/p/${slug}`;
         const title = `${translatedTitle} \u2014 ${SITE_NAME}`;
-        const ogImage = `${BASE}/api/og.png?slug=${slug}`;
+        const ogImage = `${BASE}/assets/logo-512.png`;
         const published = new Date(paper.publishedAt || paper.createdAt).toISOString();
         const modified = paper.updatedAt ? new Date(paper.updatedAt).toISOString() : published;
 

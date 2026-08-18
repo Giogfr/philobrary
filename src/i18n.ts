@@ -4543,6 +4543,8 @@ async function translateChunks(text: string, targetLang: SupportedLanguage): Pro
 export async function translatePaperContent(content: string, targetLang: SupportedLanguage): Promise<string> {
   if (!content || targetLang === 'en') return content;
 
+  const BATCH_SEP = '||||';
+
   const blocks = content.split(/\n{2,}/);
   const out: string[] = [];
 
@@ -4564,44 +4566,43 @@ export async function translatePaperContent(content: string, targetLang: Support
           continue;
         }
         const cells = line.split('|');
-        const translatedCells: string[] = [];
-        for (const cell of cells) {
-          translatedCells.push(cell.trim() ? await translateChunks(cell.trim(), targetLang) : cell);
+        const vals: string[] = [];
+        const toTranslate: { idx: number; text: string }[] = [];
+        cells.forEach((cell, i) => {
+          const t = cell.trim();
+          if (t) { vals.push(t); toTranslate.push({ idx: i, text: t }); }
+          else vals.push('');
+        });
+        if (toTranslate.length > 0) {
+          const batch = toTranslate.map(c => c.text).join(BATCH_SEP);
+          const translated = await translateChunks(batch, targetLang);
+          const parts = translated.split(BATCH_SEP);
+          toTranslate.forEach((c, j) => { vals[c.idx] = parts[j] || c.text; });
         }
-        rows.push(translatedCells.join('|'));
+        rows.push(vals.join('|'));
       }
       out.push(rows.join('\n'));
       continue;
     }
 
-    const newLines: string[] = [];
-    for (const line of lines) {
-      if (!line.trim()) {
-        newLines.push(line);
-        continue;
-      }
-      const heading = line.match(/^(\s*#{1,6})\s+(.*)$/);
-      if (heading) {
-        const text = await translateChunks(heading[2], targetLang);
-        newLines.push(`${heading[1]} ${text}`);
-        continue;
-      }
-      const quote = line.match(/^((?:\s*>)+)\s?(.*)$/);
-      if (quote && quote[2]) {
-        const text = await translateChunks(quote[2], targetLang);
-        newLines.push(`${quote[1]} ${text}`);
-        continue;
-      }
-      const list = line.match(/^(\s*(?:[-*+]|\d+\.)\s+)(.*)$/);
-      if (list && list[2]) {
-        const text = await translateChunks(list[2], targetLang);
-        newLines.push(`${list[1]}${text}`);
-        continue;
-      }
-      newLines.push(await translateChunks(line, targetLang));
-    }
+    // Normal block: batch all translatable lines into one request.
+    const translatableIndices: number[] = [];
+    const translatableTexts: string[] = [];
+    lines.forEach((line, i) => {
+      if (line.trim()) translatableIndices.push(i), translatableTexts.push(line);
+    });
 
-    out.push(newLines.join('\n'));
+    if (translatableTexts.length === 0) { out.push(block); continue; }
+
+    const batch = translatableTexts.join(BATCH_SEP);
+    let translated: string;
+    try { translated = await translateChunks(batch, targetLang); }
+    catch { out.push(block); continue; }
+
+    const parts = translated.split(BATCH_SEP);
+    const result = [...lines];
+    translatableIndices.forEach((i, j) => { result[i] = parts[j] || lines[i]; });
+    out.push(result.join('\n'));
   }
 
   return out.join('\n\n');

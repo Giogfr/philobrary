@@ -338,9 +338,76 @@ const en: TranslationKey = {
   'admin.requests.deleteConfirm': 'Delete this request?',
   'admin.filterAll': 'All',
   'admin.delete': 'Delete',
+  'contact.title': 'Contact',
+  'contact.subtitle': 'Have a question, feedback, or just want to talk philosophy? Reach out — I read everything.',
+  'contact.emailLabel': 'Email',
+  'contact.tiktokLabel': 'TikTok',
+  'contact.messageTitle': 'Send a message',
+  'contact.messageBody': 'Prefer to write an email directly? Tap the email card above, or compose one to {email}.',
+  'legal.updated': 'Last updated: August 14, 2026',
+  'legal.privacy.title': 'Privacy Policy',
+  'legal.privacy.seoTitle': 'Privacy Policy — Philobrary',
+  'legal.privacy.seoDesc': 'How Philobrary collects, uses, and protects your information.',
+  'legal.privacy.overview.title': 'Overview',
+  'legal.privacy.overview.p1': 'Philobrary ("we", "us", or "the site") is a digital library of philosophy essays, thinkers, and original research. This Privacy Policy explains what information we collect when you use the site, how we use it, and the choices you have.',
+  'legal.privacy.overview.p2': 'By using the site, you agree to the practices described in this policy. If you do not agree, please do not use the site.',
+  'legal.privacy.collect.title': 'Information We Collect',
+  'legal.privacy.collect.intro': 'We collect the following information:',
+  'legal.privacy.collect.account': 'Account information. If you choose to sign in (for example, to bookmark essays), we receive your email address and display name from your sign-in provider (Google). Your bookmarked essays are stored and associated with your account.',
+  'legal.privacy.use.title': 'How We Use Your Information',
+  'legal.privacy.use.l1': 'To operate and personalize the site, including bookmarks, language preference, and reading history.',
+  'legal.privacy.use.l2': 'To keep the site secure and to prevent abuse.',
+  'legal.privacy.use.l3': 'To communicate with you if you contact us.',
+  'legal.privacy.use.p1': 'We do not sell your personal information to anyone.',
+  'legal.privacy.cookies.title': 'Cookies and Local Storage',
+  'legal.privacy.cookies.p1': "We use your browser's local storage to remember your preferences (such as theme and language) and your bookmarked essays. We may use cookies for essential functionality.",
+  'legal.privacy.security.title': 'Data Storage and Security',
+  'legal.privacy.security.p1': 'Information is stored with our hosting and database providers (Google Firebase). We take reasonable measures to protect your data, but no method of transmission or storage is completely secure. You should use a strong password and protect your sign-in credentials.',
+  'legal.privacy.thirdparty.title': 'Third-Party Services',
+  'legal.privacy.thirdparty.p1': 'We use third-party services that may process data on our behalf, including Google Firebase (authentication and database) and Google Fonts (typography). These providers have their own privacy policies.',
+  'legal.privacy.rights.title': 'Your Rights',
+  'legal.privacy.rights.p1': 'Depending on where you live, you may have the right to access, correct, export, or delete the personal information we hold about you, and to object to certain processing. To exercise these rights, contact us using the details below.',
+  'legal.privacy.children.title': "Children's Privacy",
+  'legal.privacy.children.p1': 'The site is not directed to children under the age of 13, and we do not knowingly collect personal information from children.',
+  'legal.privacy.changes.title': 'Changes to This Policy',
+  'legal.privacy.changes.p1': 'We may update this policy from time to time. The "Last updated" date at the top of this page indicates when it was last changed. Significant changes will be noted on the site.',
+  'legal.privacy.contact.title': 'Contact',
+  'legal.privacy.contact.p1': 'If you have questions about this Privacy Policy or your data, please contact us through the',
+  'legal.privacy.contact.link': 'contact page',
+  'legal.terms.title': 'Terms of Service',
+  'legal.terms.seoTitle': 'Terms of Service — Philobrary',
+  'legal.terms.seoDesc': 'The terms and conditions for using the Philobrary philosophy essay library.',
+  'legal.terms.acceptance.title': 'Acceptance of Terms',
+  'legal.terms.acceptance.p1': 'These Terms of Service ("Terms") govern your use of the Philobrary website and any content, features, or services it provides. By accessing or using the site, you agree to be bound by these Terms. If you do not agree, please do not use the site.',
+  'legal.terms.service.title': 'Description of the Service',
+  'legal.terms.service.p1': 'Philobrary is a digital library that publishes philosophy essays, thinkers, and original research, available in multiple languages. We may add, change, remove, or update content and features at any time without notice.',
+  'legal.terms.accounts.title': 'User Accounts',
+  'legal.terms.accounts.p1': 'You may create an account to use certain features such as bookmarking essays. You are responsible for keeping your credentials secure and for all activity under your account. You must be at least 13 years old to create an account.',
+  'legal.terms.reuse.title': 'Content Usage and Reuse',
+  'legal.terms.reuse.p1': 'The original essays and research published on this site belong to their respective authors and are protected by copyright law. We welcome citation and reuse of this work for personal, educational, and non-commercial purposes under the following terms:',
+  'legal.terms.reuse.l1': 'You may quote from the essays, including for academic papers, blog posts, videos, and social media, as long as you clearly credit the author and link back to the original essay on this website.',
+  'legal.terms.reuse.l2': "When reusing content, please include the author's name and a visible link to the source page on Philobrary (or state the title and author if linking is not possible).",
+  'legal.terms.reuse.l3': 'You may not republish, reproduce, or distribute the full text of an essay, or sell the content in any form, without prior written permission from the author.',
+  'legal.terms.reuse.l4': 'If you are unsure whether your use is permitted, or you would like permission to republish the full text, please contact us before doing so.',
+  'legal.terms.ip.title': 'Intellectual Property',
+  'legal.terms.ip.p1': 'The original essays and research published on this site belong to their respective authors and are protected by copyright law. You may read and share links to the content for personal, non-commercial use, and you may quote and reuse portions with attribution as described in the "Content Usage and Reuse" section above. You may not republish, reproduce, or distribute the full text of essays without permission.',
+  'legal.terms.acceptable.title': 'Acceptable Use',
+  'legal.terms.acceptable.l1': 'Do not use the site for any unlawful purpose.',
+  'legal.terms.acceptable.l2': 'Do not attempt to disrupt, overload, or gain unauthorized access to the site or its systems.',
+  'legal.terms.acceptable.l3': 'Do not scrape or bulk-copy content beyond reasonable personal use.',
+  'legal.terms.acceptable.l4': 'Do not impersonate others or misrepresent your relationship with the site.',
+  'legal.terms.disclaimer.title': 'Disclaimer of Warranties',
+  'legal.terms.disclaimer.p1': 'The content on this site is provided for informational and educational purposes and does not constitute professional advice (legal, medical, financial, or otherwise). While we strive for accuracy, the site is provided "as is" and without warranties of any kind, express or implied.',
+  'legal.terms.liability.title': 'Limitation of Liability',
+  'legal.terms.liability.p1': 'To the fullest extent permitted by law, Philobrary and its operators shall not be liable for any indirect, incidental, special, or consequential damages arising from your use of the site.',
+  'legal.terms.changes.title': 'Changes to These Terms',
+  'legal.terms.changes.p1': 'We may update these Terms from time to time. Continued use of the site after changes are posted constitutes acceptance of the revised Terms.',
+  'legal.terms.contact.title': 'Contact',
+  'legal.terms.contact.p1': 'If you have questions about these Terms, please contact us through the',
+  'legal.terms.contact.link': 'contact page',
 };
 
-const dictionaries: Record<SupportedLanguage, TranslationKey> = {
+export const dictionaries: Record<SupportedLanguage, TranslationKey> = {
   en,
   ka: {
     'nav.library': 'ბიბლიოთეკა',
@@ -4448,14 +4515,21 @@ const dictionaries: Record<SupportedLanguage, TranslationKey> = {
 
 export function t(key: string, lang?: SupportedLanguage, vars?: Record<string, string>): string {
   const target = lang || currentLang;
+  const override = uiOverrides[target]?.[key];
   const dict = dictionaries[target] || dictionaries.en;
-  let value = dict[key] || dictionaries.en[key] || key;
+  let value = override || dict[key] || dictionaries.en[key] || key;
   if (vars) {
     Object.entries(vars).forEach(([k, v]) => {
       value = value.replace(`{${k}}`, v);
     });
   }
   return value;
+}
+
+let uiOverrides: Partial<Record<SupportedLanguage, Record<string, string>>> = {};
+
+export function setUiOverrides(overrides: Partial<Record<SupportedLanguage, Record<string, string>>>) {
+  uiOverrides = overrides;
 }
 
 // ==========================================================================

@@ -5,7 +5,7 @@ import { auth, db } from './firebase';
 export { db };
 import { signOut, onAuthStateChanged, updateProfile } from 'firebase/auth';
 import { ref, onValue, set, remove, update, get } from 'firebase/database';
-import { setCurrentLang, t, translateShortLabel, translatePaperContent, languageNames } from './i18n';
+import { setCurrentLang, t, translateShortLabel, translatePaperContent, languageNames, setUiOverrides } from './i18n';
 
 export interface ToastMessage {
   id: string;
@@ -19,6 +19,7 @@ export interface PaperTranslation {
   title?: string;
   focusArea?: string;
   content?: string;
+  description?: string;
 }
 
 interface TranslationBucket {
@@ -140,6 +141,46 @@ function readTranslationsCache(): Partial<Record<SupportedLanguage, TranslationB
   }
 }
 
+interface TranslationBundle {
+  ui?: Partial<Record<SupportedLanguage, Record<string, string>>>;
+  papers?: Partial<Record<SupportedLanguage, Record<string, PaperTranslation>>>;
+  tags?: Partial<Record<SupportedLanguage, Record<string, string>>>;
+}
+
+/**
+ * Loads the build-time translations bundle (all languages pre-translated) and
+ * seeds the store, making language switching + paper reading instant.
+ */
+async function loadTranslationBundle() {
+  try {
+    const res = await fetch('/translations-bundle.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const bundle: TranslationBundle = await res.json();
+
+    if (bundle.ui) setUiOverrides(bundle.ui);
+
+    const next: Partial<Record<SupportedLanguage, TranslationBucket>> = { ...state.translations };
+    for (const lang of Object.keys(bundle.papers || {}) as SupportedLanguage[]) {
+      const bucket = next[lang] || emptyBucket();
+      bucket.papers = { ...bucket.papers, ...(bundle.papers![lang] || {}) };
+      next[lang] = bucket;
+    }
+    for (const lang of Object.keys(bundle.tags || {}) as SupportedLanguage[]) {
+      const bucket = next[lang] || emptyBucket();
+      bucket.tags = { ...bucket.tags, ...(bundle.tags![lang] || {}) };
+      next[lang] = bucket;
+    }
+    try {
+      writeStorage(TRANSLATIONS_KEY, JSON.stringify(next));
+    } catch {
+      // ignore cache write failures
+    }
+    setState({ translations: next });
+  } catch (e) {
+    console.warn('Translation bundle load failed, falling back to runtime translation:', e);
+  }
+}
+
 function readHistory(): ReadingHistoryEntry[] {
   try {
     const cached = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
@@ -226,6 +267,9 @@ function setLanguage(lang: SupportedLanguage) {
 }
 
 const toggleTheme = () => setTheme(state.theme === 'light' ? 'dark' : 'light');
+
+// Seed all pre-translated languages at startup (fast, cached, no runtime calls).
+loadTranslationBundle();
 
 // ==========================================================================
 // AUTH + REALTIME LISTENERS (started once)
@@ -710,23 +754,25 @@ function patchTagTranslation(lang: SupportedLanguage, tagId: string, name: strin
   }));
 }
 
-/** Translates a paper's short metadata (title + focusArea) if not cached. */
+/** Translates a paper's short metadata (title + focusArea + description) if not cached. */
 const ensureMetadataTranslation = async (paper: Paper, lang: SupportedLanguage) => {
   if (lang === 'en' || !paper) return;
   const bucket = state.translations[lang] || emptyBucket();
   const entry = bucket.papers[paper.id];
   const needsTitle = entry?.title === undefined;
   const needsFocus = entry?.focusArea === undefined;
-  if (!needsTitle && !needsFocus) return;
+  const needsDescription = entry?.description === undefined && !!paper.metaDescription;
+  if (!needsTitle && !needsFocus && !needsDescription) return;
   const key = `meta:${paper.id}:${lang}`;
   if (state.pending.has(key)) return;
   markPending(key);
   try {
-    const [title, focusArea] = await Promise.all([
+    const [title, focusArea, description] = await Promise.all([
       needsTitle ? translateShortLabel(paper.title, lang) : Promise.resolve(entry!.title!),
       needsFocus ? (paper.focusArea ? translateShortLabel(paper.focusArea, lang) : Promise.resolve('')) : Promise.resolve(entry!.focusArea!),
+      needsDescription ? (paper.metaDescription ? translateShortLabel(paper.metaDescription, lang) : Promise.resolve('')) : Promise.resolve(entry!.description!),
     ]);
-    patchPaperTranslation(lang, paper.id, { title, focusArea });
+    patchPaperTranslation(lang, paper.id, { title, focusArea, description });
   } catch {
     // keep original text on failure
   } finally {
@@ -784,6 +830,12 @@ const translatedFocusArea = (paper: Paper): string => {
 const translatedContent = (paper: Paper): string => {
   if (state.language === 'en' || !paper) return paper.content;
   return state.translations[state.language]?.papers?.[paper.id]?.content ?? paper.content;
+};
+
+/** Returns the translated metaDescription (or original) for a paper. */
+const translatedDescription = (paper: Paper): string => {
+  if (state.language === 'en' || !paper) return paper.metaDescription || '';
+  return state.translations[state.language]?.papers?.[paper.id]?.description ?? paper.metaDescription ?? '';
 };
 
 /** Returns the translated name for a tag. */
@@ -848,6 +900,7 @@ export function useStore() {
     translatedTitle,
     translatedFocusArea,
     translatedContent,
+    translatedDescription,
     translatedTagName,
     ensureMetadataTranslation,
     ensureContentTranslation,

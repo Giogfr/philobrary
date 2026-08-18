@@ -96,7 +96,7 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
   const { 
     papers, tags, user, bookmarkedIds, dataReady,
     toggleBookmark, readingHistory,
-    translatedTitle, translatedTagName, translatedFocusArea, translatedContent,
+    translatedTitle, translatedTagName, translatedFocusArea, translatedContent, translatedDescription,
     ensureContentTranslation, language, theme
   } = useStore();
   
@@ -362,9 +362,9 @@ return (
                 const paperTags = (paper.tags || []).map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
                 const isSaved = bookmarkedIds.includes(paper.id);
                 const displayTags = paperTags.slice(0, 3);
-                const excerpt = paper.metaDescription
-                  ? paper.metaDescription
-                  : htmlToText(paper.content).slice(0, 180);
+                const excerpt = translatedDescription(paper)
+                  || translatedContent(paper)
+                  || htmlToText(paper.content).slice(0, 180);
                 const prev = () => setFeaturedIndex(i => (i - 1 + featuredPapers.length) % featuredPapers.length);
                 const next = () => setFeaturedIndex(i => (i + 1) % featuredPapers.length);
                 return (
@@ -628,9 +628,9 @@ return (
               const paperTags = (paper.tags || []).map(tid => tags.find(t => t.id === tid)).filter(Boolean) as Tag[];
               const isSaved = bookmarkedIds.includes(paper.id);
               const displayTags = paperTags.slice(0, 3);
-              const excerpt = paper.metaDescription
-                ? paper.metaDescription
-                : htmlToText(paper.content).slice(0, viewMode === 'grid' ? 180 : 220);
+              const excerpt = translatedDescription(paper)
+                || translatedContent(paper)
+                || htmlToText(paper.content).slice(0, viewMode === 'grid' ? 180 : 220);
 
               // Grid view card
               if (viewMode === 'grid') {
@@ -973,7 +973,7 @@ function NotFoundView() {
 
 function TagView() {
   const { slug = '' } = useParams<{ slug: string }>();
-  const { papers, tags, bookmarkedIds, toggleBookmark, translatedTitle, translatedTagName, translatedFocusArea } = useStore();
+  const { papers, tags, bookmarkedIds, toggleBookmark, translatedTitle, translatedTagName, translatedFocusArea, translatedDescription, translatedContent } = useStore();
   const navigate = useNavigate();
   const now = Date.now();
 
@@ -1073,7 +1073,7 @@ function TagView() {
             const primaryTag = paperTags[0];
             const displayTags = paperTags.slice(0, 3);
             const tagColor = primaryTag?.color || '#4F46E5';
-            const excerpt = paper.metaDescription ? paper.metaDescription : htmlToText(paper.content).slice(0, 180);
+            const excerpt = translatedDescription(paper) || translatedContent(paper) || htmlToText(paper.content).slice(0, 180);
             return (
               <article
                 key={paper.id}

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { mountAd } from '../lib/adLoader';
 
 const KEY = 'ad027cb5c3ceeb72ca3cb64a95381d9d';
 
@@ -7,24 +8,7 @@ export default function BannerAd() {
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || container.dataset.adLoaded) return;
-    container.dataset.adLoaded = '1';
-
-    (window as unknown as Record<string, unknown>).atOptions = {
-      key: KEY,
-      format: 'iframe',
-      height: 90,
-      width: 728,
-      params: {}
-    };
-
-    const script = document.createElement('script');
-    script.type = 'text/javascript';
-    script.setAttribute('data-cfasync', 'false');
-    script.src = `https://www.highperformanceformat.com/${KEY}/invoke.js`;
-    container.appendChild(script);
-
-    return () => { script.remove(); };
+    if (container) mountAd(container, { key: KEY, width: 728, height: 90 });
   }, []);
 
   return (

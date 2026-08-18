@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { t } from '../i18n';
 import { setSeo } from '../seo';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -20,10 +22,8 @@ export function LegalPage() {
 
   useEffect(() => {
     setSeo({
-      title: isPrivacy ? 'Privacy Policy' : 'Terms of Service',
-      description: isPrivacy
-        ? 'How Philobrary collects, uses, and protects your information.'
-        : 'The terms and conditions for using the Philobrary philosophy essay library.',
+      title: t(isPrivacy ? 'legal.privacy.seoTitle' : 'legal.terms.seoTitle'),
+      description: t(isPrivacy ? 'legal.privacy.seoDesc' : 'legal.terms.seoDesc'),
       url: window.location.href,
       robots: 'index, follow',
     });
@@ -33,195 +33,120 @@ export function LegalPage() {
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-10 md:py-16 animate-fade-in">
       <header className="mb-12">
         <h1 className="text-3xl md:text-4xl font-bold text-text-primary tracking-tight">
-          {isPrivacy ? 'Privacy Policy' : 'Terms of Service'}
+          {t(isPrivacy ? 'legal.privacy.title' : 'legal.terms.title')}
         </h1>
-        <p className="text-text-muted mt-2">Last updated: August 14, 2026</p>
+        <p className="text-text-muted mt-2">{t('legal.updated')}</p>
       </header>
 
       {isPrivacy ? (
         <>
-          <Section title="Overview">
-            <P>
-              Philobrary ("we", "us", or "the site") is a digital library of philosophy essays, thinkers,
-              and original research. This Privacy Policy explains what information we collect when you use the
-              site, how we use it, and the choices you have.
-            </P>
-            <P>
-              By using the site, you agree to the practices described in this policy. If you do not agree,
-              please do not use the site.
-            </P>
+          <Section title={t('legal.privacy.overview.title')}>
+            <P>{t('legal.privacy.overview.p1')}</P>
+            <P>{t('legal.privacy.overview.p2')}</P>
           </Section>
 
-          <Section title="Information We Collect">
-            <P>We collect the following information:</P>
+          <Section title={t('legal.privacy.collect.title')}>
+            <P>{t('legal.privacy.collect.intro')}</P>
             <ul className="space-y-2">
               <LI>
-                <strong className="text-text-primary">Account information.</strong> If you choose to sign in
-                (for example, to bookmark essays), we receive your email address and display name from your
-                sign-in provider (Google). Your bookmarked essays are stored and associated with your account.
+                <strong className="text-text-primary">{t('legal.privacy.collect.account')}</strong>
               </LI>
             </ul>
           </Section>
 
-          <Section title="How We Use Your Information">
+          <Section title={t('legal.privacy.use.title')}>
             <ul className="space-y-2">
-              <LI>To operate and personalize the site, including bookmarks, language preference, and reading history.</LI>
-              <LI>To keep the site secure and to prevent abuse.</LI>
-              <LI>To communicate with you if you contact us.</LI>
+              <LI>{t('legal.privacy.use.l1')}</LI>
+              <LI>{t('legal.privacy.use.l2')}</LI>
+              <LI>{t('legal.privacy.use.l3')}</LI>
             </ul>
-            <P>We do not sell your personal information to anyone.</P>
+            <P>{t('legal.privacy.use.p1')}</P>
           </Section>
 
-          <Section title="Cookies and Local Storage">
-            <P>
-              We use your browser's local storage to remember your preferences (such as theme and language)
-              and your bookmarked essays. We may use cookies for essential functionality.
-            </P>
+          <Section title={t('legal.privacy.cookies.title')}>
+            <P>{t('legal.privacy.cookies.p1')}</P>
           </Section>
 
-          <Section title="Data Storage and Security">
-            <P>
-              Information is stored with our hosting and database providers (Google Firebase). We take
-              reasonable measures to protect your data, but no method of transmission or storage is
-              completely secure. You should use a strong password and protect your sign-in credentials.
-            </P>
+          <Section title={t('legal.privacy.security.title')}>
+            <P>{t('legal.privacy.security.p1')}</P>
           </Section>
 
-          <Section title="Third-Party Services">
-            <P>
-              We use third-party services that may process data on our behalf, including Google Firebase
-              (authentication and database) and Google Fonts (typography). These providers have their own
-              privacy policies.
-            </P>
+          <Section title={t('legal.privacy.thirdparty.title')}>
+            <P>{t('legal.privacy.thirdparty.p1')}</P>
           </Section>
 
-          <Section title="Your Rights">
-            <P>
-              Depending on where you live, you may have the right to access, correct, export, or delete the
-              personal information we hold about you, and to object to certain processing. To exercise these
-              rights, contact us using the details below.
-            </P>
+          <Section title={t('legal.privacy.rights.title')}>
+            <P>{t('legal.privacy.rights.p1')}</P>
           </Section>
 
-          <Section title="Children's Privacy">
-            <P>
-              The site is not directed to children under the age of 13, and we do not knowingly collect
-              personal information from children.
-            </P>
+          <Section title={t('legal.privacy.children.title')}>
+            <P>{t('legal.privacy.children.p1')}</P>
           </Section>
 
-          <Section title="Changes to This Policy">
-            <P>
-              We may update this policy from time to time. The "Last updated" date at the top of this page
-              indicates when it was last changed. Significant changes will be noted on the site.
-            </P>
+          <Section title={t('legal.privacy.changes.title')}>
+            <P>{t('legal.privacy.changes.p1')}</P>
           </Section>
 
-          <Section title="Contact">
+          <Section title={t('legal.privacy.contact.title')}>
             <P>
-              If you have questions about this Privacy Policy or your data, please contact us through the
-              <a href="/contact" className="text-accent-indigo hover:text-accent-cyan transition-colors"> contact page</a>.
+              {t('legal.privacy.contact.p1')}{' '}
+              <Link to="/contact" className="text-accent-indigo hover:text-accent-cyan transition-colors">{t('legal.privacy.contact.link')}</Link>.
             </P>
           </Section>
         </>
       ) : (
         <>
-          <Section title="Acceptance of Terms">
-            <P>
-              These Terms of Service ("Terms") govern your use of the Philobrary website and any content,
-              features, or services it provides. By accessing or using the site, you agree to be bound by
-              these Terms. If you do not agree, please do not use the site.
-            </P>
+          <Section title={t('legal.terms.acceptance.title')}>
+            <P>{t('legal.terms.acceptance.p1')}</P>
           </Section>
 
-          <Section title="Description of the Service">
-            <P>
-              Philobrary is a digital library that publishes philosophy essays, thinkers, and original
-              research, available in multiple languages. We may add, change, remove, or update content and
-              features at any time without notice.
-            </P>
+          <Section title={t('legal.terms.service.title')}>
+            <P>{t('legal.terms.service.p1')}</P>
           </Section>
 
-          <Section title="User Accounts">
-            <P>
-              You may create an account to use certain features such as bookmarking essays. You are
-              responsible for keeping your credentials secure and for all activity under your account.
-              You must be at least 13 years old to create an account.
-            </P>
+          <Section title={t('legal.terms.accounts.title')}>
+            <P>{t('legal.terms.accounts.p1')}</P>
           </Section>
 
-          <Section title="Content Usage and Reuse">
-            <P>
-              The original essays and research published on this site belong to their respective authors and
-              are protected by copyright law. We welcome citation and reuse of this work for personal,
-              educational, and non-commercial purposes under the following terms:
-            </P>
+          <Section title={t('legal.terms.reuse.title')}>
+            <P>{t('legal.terms.reuse.p1')}</P>
             <ul className="space-y-2">
-              <LI>
-                You may quote from the essays, including for academic papers, blog posts, videos, and social
-                media, as long as you clearly credit the author and link back to the original essay on this
-                website.
-              </LI>
-              <LI>
-                When reusing content, please include the author's name and a visible link to the source page
-                on Philobrary (or state the title and author if linking is not possible).
-              </LI>
-              <LI>
-                You may not republish, reproduce, or distribute the full text of an essay, or sell the
-                content in any form, without prior written permission from the author.
-              </LI>
-              <LI>
-                If you are unsure whether your use is permitted, or you would like permission to republish
-                the full text, please contact us before doing so.
-              </LI>
+              <LI>{t('legal.terms.reuse.l1')}</LI>
+              <LI>{t('legal.terms.reuse.l2')}</LI>
+              <LI>{t('legal.terms.reuse.l3')}</LI>
+              <LI>{t('legal.terms.reuse.l4')}</LI>
             </ul>
           </Section>
 
-          <Section title="Intellectual Property">
-            <P>
-              The original essays and research published on this site belong to their respective authors and
-              are protected by copyright law. You may read and share links to the content for personal,
-              non-commercial use, and you may quote and reuse portions with attribution as described in the
-              "Content Usage and Reuse" section above. You may not republish, reproduce, or distribute the
-              full text of essays without permission.
-            </P>
+          <Section title={t('legal.terms.ip.title')}>
+            <P>{t('legal.terms.ip.p1')}</P>
           </Section>
 
-          <Section title="Acceptable Use">
+          <Section title={t('legal.terms.acceptable.title')}>
             <ul className="space-y-2">
-              <LI>Do not use the site for any unlawful purpose.</LI>
-              <LI>Do not attempt to disrupt, overload, or gain unauthorized access to the site or its systems.</LI>
-              <LI>Do not scrape or bulk-copy content beyond reasonable personal use.</LI>
-              <LI>Do not impersonate others or misrepresent your relationship with the site.</LI>
+              <LI>{t('legal.terms.acceptable.l1')}</LI>
+              <LI>{t('legal.terms.acceptable.l2')}</LI>
+              <LI>{t('legal.terms.acceptable.l3')}</LI>
+              <LI>{t('legal.terms.acceptable.l4')}</LI>
             </ul>
           </Section>
 
-          <Section title="Disclaimer of Warranties">
-            <P>
-              The content on this site is provided for informational and educational purposes and does not
-              constitute professional advice (legal, medical, financial, or otherwise). While we strive for
-              accuracy, the site is provided "as is" and without warranties of any kind, express or implied.
-            </P>
+          <Section title={t('legal.terms.disclaimer.title')}>
+            <P>{t('legal.terms.disclaimer.p1')}</P>
           </Section>
 
-          <Section title="Limitation of Liability">
-            <P>
-              To the fullest extent permitted by law, Philobrary and its operators shall not be liable for
-              any indirect, incidental, special, or consequential damages arising from your use of the site.
-            </P>
+          <Section title={t('legal.terms.liability.title')}>
+            <P>{t('legal.terms.liability.p1')}</P>
           </Section>
 
-          <Section title="Changes to These Terms">
-            <P>
-              We may update these Terms from time to time. Continued use of the site after changes are posted
-              constitutes acceptance of the revised Terms.
-            </P>
+          <Section title={t('legal.terms.changes.title')}>
+            <P>{t('legal.terms.changes.p1')}</P>
           </Section>
 
-          <Section title="Contact">
+          <Section title={t('legal.terms.contact.title')}>
             <P>
-              If you have questions about these Terms, please contact us through the
-              <a href="/contact" className="text-accent-indigo hover:text-accent-cyan transition-colors"> contact page</a>.
+              {t('legal.terms.contact.p1')}{' '}
+              <Link to="/contact" className="text-accent-indigo hover:text-accent-cyan transition-colors">{t('legal.terms.contact.link')}</Link>.
             </P>
           </Section>
         </>

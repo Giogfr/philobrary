@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>404 — Philobrary</title>
+    <style>
+      :root {
+        --bg-primary: #000000;
+        --bg-secondary: #070707;
+        --bg-card: #0D0D0D;
+        --text-primary: #FFFFFF;
+        --text-secondary: #A6A6A6;
+        --border-subtle: #1F1F1F;
+      }
+      html[data-theme="light"] {
+        --bg-primary: #FFFFFF;
+        --bg-secondary: #FAFAFA;
+        --bg-card: #F4F4F4;
+        --text-primary: #000000;
+        --text-secondary: #4A4A4A;
+        --border-subtle: #E0E0E0;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap { max-width: 460px; width: 100%; text-align: center; }
+      .logo {
+        font-size: 13px;
+        letter-spacing: 0.35em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        margin-bottom: 40px;
+        text-decoration: none;
+        display: inline-block;
+      }
+      .number {
+        font-size: 128px;
+        font-weight: 700;
+        line-height: 1;
+        letter-spacing: -0.04em;
+        margin-bottom: 24px;
+        animation: fadeDown .7s ease both;
+      }
+      h1 {
+        font-size: 32px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-bottom: 8px;
+        animation: fadeIn .7s ease .2s both;
+      }
+      p {
+        font-size: 15px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        margin-bottom: 32px;
+        animation: fadeIn .7s ease .2s both;
+      }
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        animation: fadeUp .7s ease .4s both;
+      }
+      a.btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 14px 16px;
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+        transition: color .2s ease, border-color .2s ease;
+      }
+      a.btn:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+      @keyframes fadeDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+      @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+      @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      @media (max-width: 420px) { .number { font-size: 96px; } }
+    </style>
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('theme'); } catch (e) {}
+        if (t !== 'light' && t !== 'dark') {
+          t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+        }
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
+  </head>
+  <body>
+    <div class="wrap">
+      <a class="logo" href="/">PHILOBRARY</a>
+      <div class="number">404</div>
+      <h1>This page isn't here.</h1>
+      <p>The page you're looking for doesn't exist, was moved, or was never written.</p>
+      <div class="actions">
+        <a class="btn" href="/">Home</a>
+        <a class="btn" href="/saved">Saved</a>
+      </div>
+    </div>
+  </body>
+</html>

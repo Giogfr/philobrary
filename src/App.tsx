@@ -16,8 +16,6 @@ import { ContactPage } from './components/ContactPage';
 import { RequestPaperPage } from './components/RequestPaperPage';
 import { Preloader } from './components/Preloader';
 import { BalloonHeadline } from './components/BalloonHeadline';
-import SidebarAd from './components/SidebarAd';
-import BannerAd from './components/BannerAd';
 
 // Route-level code splitting — admin + auth screens load on demand.
 const AdminLogin = lazy(() => import('./components/AdminLogin').then(m => ({ default: m.AdminLogin })));
@@ -97,7 +95,8 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
     papers, tags, user, bookmarkedIds, dataReady,
     toggleBookmark, readingHistory,
     translatedTitle, translatedTagName, translatedFocusArea, translatedContent, translatedDescription,
-    ensureContentTranslation, language, theme
+    ensureContentTranslation, language, theme,
+    trackClickForSmartlink
   } = useStore();
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -281,27 +280,40 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
     setHreflangAlternates(currentView === 'saved' ? '/saved' : '/');
   }, [currentView]);
 
+  // Global click tracker for smartlink (opens every 4 clicks)
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Track clicks on interactive elements (links, buttons, clickable cards)
+      if (target.closest('a, button, [role="button"], [onClick]')) {
+        trackClickForSmartlink();
+      }
+    };
+    document.addEventListener('click', handleClick, true);
+    return () => document.removeEventListener('click', handleClick, true);
+  }, [trackClickForSmartlink]);
+
 return (
     <>
-      <div id="main-content" className="max-w-7xl mx-auto px-4 md:px-6 py-10 md:py-20 relative">
+      <div id="main-content" className="max-w-7xl mx-auto px-4 md:px-6 py-8 md:py-16 relative">
         {/* Hero: text + featured paper side-by-side */}
-        <div className={`relative flex flex-col md:flex-row items-start gap-8 mb-8 md:mb-12 ${currentView === 'library' && featuredPapers.length > 0 ? 'lg:items-start' : ''}`}>
-          <div className="max-w-3xl">
+        <div className={`relative flex flex-col md:flex-row items-start gap-6 mb-8 md:mb-10 ${currentView === 'library' && featuredPapers.length > 0 ? 'lg:items-start' : ''}`}>
+          <div className="max-w-3xl w-full">
             {currentView === 'saved' ? (
-              <h1 className="text-[2.5rem] sm:text-[3rem] md:text-[4rem] font-bold text-text-primary tracking-tighter mb-6 leading-[1.06] hero-title">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-text-primary tracking-tighter mb-5 leading-tight hero-title">
                 {t('hero.title.saved')}
               </h1>
             ) : (
               <BalloonHeadline theme={theme === 'dark' ? 'dark' : 'light'} />
             )}
-            <p className={`text-[15px] md:text-[17px] text-text-secondary leading-relaxed hero-subtitle max-w-[50ch] anim-enter anim-d3`}>
+            <p className={`text-base sm:text-lg text-text-secondary leading-relaxed hero-subtitle max-w-[50ch] anim-enter anim-d3`}>
               {currentView === 'saved' ? t('hero.subtitle.saved') : t('hero.subtitle.library')}
             </p>
 
             {currentView === 'library' && (
               <>
                 {/* Library stats */}
-                <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5">
+                <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-4">
                   {[
                     { label: t('library.statEssays'), value: libraryPapers.length.toLocaleString() },
                     { label: t('library.statTopics'), value: topTags.length.toLocaleString() },
@@ -309,8 +321,8 @@ return (
                     { label: t('library.statLanguages'), value: '15' },
                   ].map((s, i) => (
                     <div key={s.label} className={`flex items-baseline gap-2 anim-enter anim-d${Math.min(i + 4, 10)}`}>
-                      <dt className="text-[2rem] md:text-[2.5rem] font-bold text-text-primary tracking-tighter">{s.value}</dt>
-                      <dd className="text-[10px] font-mono text-text-muted uppercase tracking-widest">{s.label}</dd>
+                      <dt className="text-xl sm:text-2xl md:text-3xl font-bold text-text-primary tracking-tighter">{s.value}</dt>
+                      <dd className="text-xs font-mono text-text-muted uppercase tracking-widest">{s.label}</dd>
                     </div>
                   ))}
                 </dl>
@@ -478,15 +490,16 @@ return (
           );
         })()}
 
-        <div className="flex flex-col lg:flex-row gap-4 mb-8 anim-enter anim-d6">
-<div className="relative flex-1">
-            <div className="absolute inset-y-0 start-0 flex items-center ps-4 text-text-muted"><Search size={16} /></div>
+        <div className="space-y-4 md:flex md:flex-col md:gap-4 mb-8 anim-enter anim-d6">
+          {/* Search - full width on mobile, flex-1 on desktop */}
+          <div className="relative w-full">
+            <div className="absolute inset-y-0 start-0 flex items-center ps-4 text-text-muted"><Search size={18} /></div>
             <input 
               ref={searchRef}
               type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               placeholder={t('search.placeholder')}
               aria-label={t('search.placeholder')}
-              className="w-full py-3.5 ps-11 pe-11 bg-bg-card border border-border-subtle text-text-primary rounded-lg text-[15px] focus:outline-none transition-all placeholder:text-text-muted search-input input-focus"
+              className="w-full py-4 ps-12 pe-12 bg-bg-card border border-border-subtle text-text-primary rounded-xl text-base focus:outline-none transition-all placeholder:text-text-muted search-input input-focus"
             />
             {searchQuery ? (
               <button
@@ -494,23 +507,24 @@ return (
                 aria-label={t('search.clear')}
                 className="absolute inset-y-0 end-0 flex items-center pe-4 text-text-muted hover:text-text-primary"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             ) : (
               <kbd className="absolute inset-y-0 end-0 hidden sm:flex items-center me-4 px-2 py-0.5 text-[11px] font-mono text-text-muted bg-bg-secondary border border-border-subtle rounded">/</kbd>
             )}
           </div>
 
-          <div className="flex gap-3">
-            <div className="relative flex-1 lg:min-w-[200px]">
-              <button onClick={() => setShowSortDropdown(!showSortDropdown)} aria-haspopup="listbox" aria-expanded={showSortDropdown} className="w-full h-full flex items-center justify-between px-4 py-3.5 bg-bg-card border border-border-subtle text-text-primary rounded-lg text-[15px] hover:border-line-2 transition-colors">
-                <div className="flex items-center gap-2"><SlidersHorizontal size={14} className="text-text-muted" /> <span className="hidden sm:inline text-text-muted text-[13px]">{t('sort.label')}</span> <span className="text-[13px]">{t(SORT_LABEL_KEY[sortBy])}</span></div>
-                <ChevronDown size={14} className="text-text-muted" />
+          {/* Sort + View Mode - side by side on desktop, stacked on mobile */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <button onClick={() => setShowSortDropdown(!showSortDropdown)} aria-haspopup="listbox" aria-expanded={showSortDropdown} className="w-full flex items-center justify-between px-4 py-3.5 bg-bg-card border border-border-subtle text-text-primary rounded-xl text-base hover:border-line-2 transition-colors">
+                <div className="flex items-center gap-2"><SlidersHorizontal size={16} className="text-text-muted" /> <span className="hidden sm:inline text-text-muted text-sm">{t('sort.label')}</span> <span className="text-sm">{t(SORT_LABEL_KEY[sortBy])}</span></div>
+                <ChevronDown size={16} className="text-text-muted" />
               </button>
               {showSortDropdown && (
                 <div className="absolute top-full mt-1 w-full bg-bg-card border border-border-subtle rounded-lg overflow-hidden z-20" role="listbox">
                   {(['newest', 'oldest', 'views', 'saves', 'updated', 'alpha'] as SortOption[]).map(opt => (
-                    <button key={opt} onClick={() => { setSortBy(opt); setShowSortDropdown(false); }} className={`w-full text-start px-4 py-2.5 text-[13px] hover:bg-bg-hover transition-colors ${sortBy === opt ? 'text-text-primary bg-bg-secondary' : 'text-text-secondary'}`}>
+                    <button key={opt} onClick={() => { setSortBy(opt); setShowSortDropdown(false); }} className={`w-full text-start px-4 py-3 text-sm hover:bg-bg-hover transition-colors ${sortBy === opt ? 'text-text-primary bg-bg-secondary' : 'text-text-secondary'}`}>
                       {t(SORT_LABEL_KEY[opt])}
                     </button>
                   ))}
@@ -518,24 +532,25 @@ return (
               )}
             </div>
 
-            <div className="flex items-center bg-bg-card border border-border-subtle rounded-lg p-1 shrink-0" role="group" aria-label={t('library.view')}>
-              <button onClick={() => setViewMode('grid')} aria-pressed={viewMode === 'grid'} className={`p-2 rounded transition-colors ${viewMode === 'grid' ? 'bg-bg-hover text-text-primary' : 'text-text-muted hover:text-text-primary'}`} title={t('library.viewGrid')}>
-                <LayoutGrid size={16} />
+            <div className="flex items-center bg-bg-card border border-border-subtle rounded-xl p-1 shrink-0" role="group" aria-label={t('library.view')}>
+              <button onClick={() => setViewMode('grid')} aria-pressed={viewMode === 'grid'} className={`p-3 rounded transition-colors ${viewMode === 'grid' ? 'bg-bg-hover text-text-primary' : 'text-text-muted hover:text-text-primary'}`} title={t('library.viewGrid')}>
+                <LayoutGrid size={18} />
               </button>
-              <button onClick={() => setViewMode('list')} aria-pressed={viewMode === 'list'} className={`p-2 rounded transition-colors ${viewMode === 'list' ? 'bg-bg-hover text-text-primary' : 'text-text-muted hover:text-text-primary'}`} title={t('library.viewList')}>
-                <List size={16} />
+              <button onClick={() => setViewMode('list')} aria-pressed={viewMode === 'list'} className={`p-3 rounded transition-colors ${viewMode === 'list' ? 'bg-bg-hover text-text-primary' : 'text-text-muted hover:text-text-primary'}`} title={t('library.viewList')}>
+                <List size={18} />
               </button>
             </div>
           </div>
         </div>
 
+        {/* Tag Filter Bar - horizontal scroll with scroll indicator */}
         <div className="sticky top-[60px] md:top-[72px] z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-3 mb-6 bg-bg-primary/85 backdrop-blur-xl border-b border-border-subtle anim-enter anim-d7">
           <div className="flex flex-col md:flex-row md:items-center gap-3">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 md:overflow-x-auto md:no-scrollbar md:pb-2">
             <button
               onClick={() => setSelectedTagId('All')}
               aria-pressed={selectedTagId === 'All'}
-              className={`px-4 py-1.5 text-[13px] font-medium rounded border transition-all btn-press ${selectedTagId === 'All' ? 'bg-text-primary text-bg-primary border-text-primary' : 'text-text-secondary border-border-subtle hover:border-line-2 hover:text-text-primary'}`}
+              className={`px-4 py-2 text-sm font-medium rounded-lg border transition-all btn-press shrink-0 ${selectedTagId === 'All' ? 'bg-text-primary text-bg-primary border-text-primary' : 'text-text-secondary border-border-subtle hover:border-line-2 hover:text-text-primary'}`}
             >
               {t('filter.all')}
             </button>
@@ -545,7 +560,7 @@ return (
                 id={`tag-chip-${tag.id}`}
                 onClick={() => setSelectedTagId(tag.id)}
                 aria-pressed={selectedTagId === tag.id}
-                className={`px-4 py-1.5 text-[13px] font-medium rounded border transition-all tag-hover scroll-mx-6 ${selectedTagId === tag.id ? 'bg-text-primary text-bg-primary border-text-primary' : 'text-text-secondary border-border-subtle hover:border-line-2 hover:text-text-primary'}`}
+                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-all tag-hover shrink-0 ${selectedTagId === tag.id ? 'bg-text-primary text-bg-primary border-text-primary' : 'text-text-secondary border-border-subtle hover:border-line-2 hover:text-text-primary'}`}
               >
                 {translatedTagName(tag)}
               </button>
@@ -553,7 +568,7 @@ return (
             {!showAllTags && tags.length > 8 && (
               <button
                 onClick={() => setShowAllTags(true)}
-                className="px-4 py-1.5 text-[13px] font-medium rounded border border-border-subtle text-text-secondary hover:border-line-2"
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-border-subtle text-text-secondary hover:border-line-2 shrink-0"
               >
                 +{tags.length - 8} {t('filter.more')}
               </button>
@@ -561,26 +576,26 @@ return (
             {showAllTags && tags.length > 8 && (
               <button
                 onClick={() => setShowAllTags(false)}
-                className="px-4 py-1.5 text-[13px] font-medium rounded border border-border-subtle text-text-secondary hover:border-line-2"
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-border-subtle text-text-secondary hover:border-line-2 shrink-0"
               >
                 {t('filter.less')}
               </button>
             )}
           </div>
 
-          <div className="md:ms-auto flex items-center gap-3">
+          <div className="md:ms-auto flex flex-wrap items-center gap-3">
             {authors.length > 1 && (
               <select
                 value={selectedAuthor}
                 onChange={e => setSelectedAuthor(e.target.value)}
                 aria-label={t('library.author')}
-                className="px-3 py-1.5 bg-bg-card border border-border-subtle text-text-secondary rounded text-[13px] focus:outline-none"
+                className="px-3 py-2 bg-bg-card border border-border-subtle text-text-secondary rounded-lg text-sm focus:outline-none min-w-[140px]"
               >
                 <option value="All">{t('library.allAuthors')}</option>
                 {authors.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             )}
-            <span className="text-[13px] font-mono text-text-muted whitespace-nowrap">
+            <span className="text-sm font-mono text-text-muted whitespace-nowrap">
               {filteredPapers.length} {filteredPapers.length === 1 ? t('library.paper') : t('library.papers')}
             </span>
           </div>
@@ -732,10 +747,6 @@ return (
           </div>
         )}
         </div>
-
-        <aside className="hidden xl:block w-[160px] shrink-0 sticky top-[140px] no-print">
-          <SidebarAd />
-        </aside>
         </div>
       </div>
 
@@ -1327,8 +1338,6 @@ export default function App() {
         </div>
       </nav>
 
-      <BannerAd />
-
       <main className="flex-1 w-full">
         <Suspense fallback={<RouteFallback />}>
           <Routes>
@@ -1361,8 +1370,6 @@ export default function App() {
           </Routes>
 </Suspense>
         </main>
-
-        <BannerAd />
 
         <footer className="w-full border-t border-border-subtle mt-4">
           <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">

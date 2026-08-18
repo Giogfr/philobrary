@@ -204,6 +204,7 @@ let state: StoreState = {
   dataReady: false,
   notifications: [], // in-app notifications for current user
   unreadNotifications: 0,
+  smartlinkClickCount: 0,
 };
 
 const listeners = new Set<() => void>();
@@ -243,6 +244,17 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'info')
   setTimeout(() => {
     setState({ toasts: state.toasts.filter(t => t.id !== id) });
   }, 3500);
+}
+
+const SMARTLINK_URL = 'https://www.effectivecpmnetwork.com/cjdt4sixz?key=c287384717ed0ece358d692e47e728b8';
+const SMARTLINK_CLICK_INTERVAL = 4; // Open smartlink every 4 clicks
+
+function trackClickForSmartlink() {
+  const count = state.smartlinkClickCount + 1;
+  setState({ smartlinkClickCount: count });
+  if (count % SMARTLINK_CLICK_INTERVAL === 0) {
+    window.open(SMARTLINK_URL, '_blank', 'noopener,noreferrer');
+  }
 }
 
 function applyTheme(theme: 'light' | 'dark') {
@@ -896,6 +908,7 @@ export function useStore() {
     logout,
     updateUserProfile,
     showToast,
+    trackClickForSmartlink,
     // Translation layer
     translatedTitle,
     translatedFocusArea,

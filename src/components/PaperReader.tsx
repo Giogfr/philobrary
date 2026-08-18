@@ -4,14 +4,13 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { Paper, Tag } from '../types';
-import { X, Check, Clock, Calendar, ChevronLeft, List, ExternalLink, Download, Bookmark, Quote, Activity, FileDown, History, Type, AlignLeft, Sparkles, Sun, Moon, Globe, Eye, ArrowUp, Share2, AtSign, ThumbsUp, Send, MessageCircle, Briefcase, Copy, Shuffle, ZoomIn, Printer, Focus } from 'lucide-react';
+import { X, Check, Clock, Calendar, ChevronLeft, List, ExternalLink, Download, Bookmark, Quote, Activity, FileDown, History, Type, AlignLeft, Sparkles, Sun, Moon, Globe, Eye, ArrowUp, Share2, AtSign, ThumbsUp, Send, MessageCircle, Briefcase, Copy, Shuffle, ZoomIn, Printer, Focus, MoreHorizontal, Menu, TextSize } from 'lucide-react';
 import { getRelativeTime, stripDarkInlineColors, headingSlug } from '../utils';
 import { useStore } from '../store';
 import { t, languageShortNames } from '../i18n';
 import { BASE_URL } from '../seo';
 import { Flag } from './Flag';
 import { LanguageSelector } from './LanguageSelector';
-import SidebarAd from './SidebarAd';
 const sanitizeHtml = (html: string): string => {
   const allowedTags = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'a', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'div', 'span']);
   const allowedAttrs: Record<string, Set<string>> = {
@@ -118,7 +117,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   const [showOutline, setShowOutline] = useState(true);
   const [showCitations, setShowCitations] = useState(false);
   const [showShare, setShowShare] = useState(false);
-  const [showFormatting, setShowFormatting] = useState(true);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [headings, setHeadings] = useState<{id: string, text: string, level: number}[]>([]);
   const [readingProgress, setReadingProgress] = useState(0);
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -155,6 +154,21 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   useEffect(() => {
     uiRef.current = { zoomedImg, showCitations, showShare, showLangSelector, showOutline };
   }, [zoomedImg, showCitations, showShare, showLangSelector, showOutline]);
+
+  // Close more menu on click outside
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const menuBtn = document.querySelector('[aria-label="More options"]');
+      const menu = document.querySelector('[role="menu"]');
+      if (menuBtn && !menuBtn.contains(target) && menu && !menu.contains(target)) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMoreMenu]);
 
   // Latest headings for the scroll-spy listener.
   const headingsRef = useRef(headings);
@@ -370,82 +384,148 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
         </button>
       )}
       
-      <header className="flex items-center justify-between px-4 md:px-6 py-2 bg-bg-primary/95 backdrop-blur-sm border-b border-border-subtle z-10 shrink-0 gap-3 no-print">
+      <header className="flex items-center justify-between px-4 md:px-6 py-3 bg-bg-primary/95 backdrop-blur-sm border-b border-border-subtle z-10 shrink-0 gap-3 no-print">
         <button 
           onClick={onClose}
-          className="flex items-center px-3 md:px-4 py-2 text-sm font-medium text-text-secondary bg-bg-card hover:bg-bg-hover hover:text-text-primary rounded-full transition-colors shrink-0"
+          className="flex items-center px-4 py-3 text-sm font-medium text-text-secondary bg-bg-card hover:bg-bg-hover hover:text-text-primary rounded-full transition-colors shrink-0 min-h-[44px] min-w-[44px]"
         >
-          <ChevronLeft size={16} className="me-2 rtl:rotate-180" />
-          {t('reader.back')}
+          <ChevronLeft size={20} className="me-2 rtl:rotate-180" />
+          <span className="hidden sm:inline">{t('reader.back')}</span>
         </button>
 
         <div className="flex items-center gap-1.5 md:gap-2 overflow-x-auto no-scrollbar">
+          {/* Primary actions always visible */}
           <button
             onClick={() => setIsSepia(!isSepia)}
-            className={`p-2.5 rounded-full transition-colors shrink-0 ${isSepia ? 'bg-[#E8DCC0] text-[#3B2F1D]' : 'bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`}
+            className={`p-3 rounded-full transition-colors shrink-0 ${isSepia ? 'bg-[#E8DCC0] text-[#3B2F1D]' : 'bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`}
             title={isSepia ? t('reader.normalMode') : t('reader.sepia')}
+            aria-label={isSepia ? t('reader.normalMode') : t('reader.sepia')}
           >
-            <Type size={18} />
+            <Type size={20} />
           </button>
 
           <button
             onClick={toggleTheme}
             title={theme === 'dark' ? t('theme.light') : t('theme.dark')}
-            className="p-2.5 rounded-full transition-colors bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary shrink-0 theme-toggle"
+            className="p-3 rounded-full transition-colors bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary shrink-0 theme-toggle"
+            aria-label={theme === 'dark' ? t('theme.light') : t('theme.dark')}
           >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
 
           <button
             onClick={() => setShowLangSelector(true)}
-            className="flex items-center gap-2 px-2.5 md:px-3 py-2 text-sm font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-bg-hover rounded-full transition-colors shrink-0"
+            className="flex items-center gap-2 px-3 py-3 text-sm font-medium text-text-secondary hover:text-text-primary bg-bg-card hover:bg-bg-hover rounded-full transition-colors shrink-0 min-h-[44px]"
             title={t('lang.title')}
+            aria-label={t('lang.title')}
           >
-            <Globe size={16} className="text-accent-indigo" />
-            <Flag code={language} className="w-4 h-4" />
+            <Globe size={18} className="text-accent-indigo" />
+            <Flag code={language} className="w-5 h-5" />
             <span className="hidden sm:inline">{languageShortNames[language]}</span>
           </button>
 
+          {/* Mobile: Font size quick access (replaces hidden desktop control) */}
           {isMarkdown && (
-            <div className="hidden md:flex items-center bg-bg-card rounded-full p-1 border border-border-subtle shrink-0">
-              <button onClick={() => setFontSize('base')} className={`px-2.5 py-1 text-xs rounded-full transition-colors ${fontSize === 'base' ? 'bg-bg-hover text-text-primary' : 'text-text-muted'}`}>A</button>
-              <button onClick={() => setFontSize('lg')} className={`px-2.5 py-1 text-sm rounded-full transition-colors ${fontSize === 'lg' ? 'bg-bg-hover text-text-primary' : 'text-text-muted'}`}>A</button>
-              <button onClick={() => setFontSize('xl')} className={`px-2.5 py-1 text-base rounded-full transition-colors ${fontSize === 'xl' ? 'bg-bg-hover text-text-primary' : 'text-text-muted'}`}>A</button>
+            <div className="hidden sm:flex items-center bg-bg-card rounded-full p-1 border border-border-subtle shrink-0">
+              <button onClick={() => setFontSize('base')} className={`px-2.5 py-1 text-xs rounded-full transition-colors ${fontSize === 'base' ? 'bg-bg-hover text-text-primary' : 'text-text-muted'}`} aria-label="Small">A</button>
+              <button onClick={() => setFontSize('lg')} className={`px-2.5 py-1 text-sm rounded-full transition-colors ${fontSize === 'lg' ? 'bg-bg-hover text-text-primary' : 'text-text-muted'}`} aria-label="Medium">A</button>
+              <button onClick={() => setFontSize('xl')} className={`px-2.5 py-1 text-base rounded-full transition-colors ${fontSize === 'xl' ? 'bg-bg-hover text-text-primary' : 'text-text-muted'}`} aria-label="Large">A</button>
             </div>
           )}
-          
-          <button onClick={() => onToggleBookmark(paper.id)} className={`p-2.5 rounded-full transition-colors shrink-0 ${isBookmarked ? 'bg-accent-indigo/20 text-accent-indigo' : 'bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`} title={t('reader.bookmark')}>
-            <Bookmark size={18} fill={isBookmarked ? "currentColor" : "none"} />
-          </button>
-          
-          <button onClick={() => setShowCitations(true)} className="p-2.5 bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary rounded-full transition-colors shrink-0 no-print" title={t('reader.citations')}>
-            <Quote size={18} />
-          </button>
-          
-          <button onClick={() => window.print()} className="p-2.5 bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary rounded-full transition-colors shrink-0 no-print" title={t('reader.print')}>
-            <Printer size={18} />
-          </button>
-          
-          {isMarkdown && (
-            <button onClick={() => setShowOutline(!showOutline)} className={`p-2.5 rounded-full transition-colors shrink-0 ${showOutline ? 'bg-accent-cyan text-bg-primary' : 'bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`} title={t('reader.outline')}>
-              <List size={18} />
+
+          {/* Mobile: More menu for secondary actions */}
+          <div className="relative">
+            <button
+              onClick={() => setShowMoreMenu(!showMoreMenu)}
+              className="p-3 rounded-full bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary shrink-0 transition-colors"
+              aria-label="More options"
+              aria-expanded={showMoreMenu}
+            >
+              <MoreHorizontal size={20} />
             </button>
-          )}
-
-          {isMarkdown && (
-            <button onClick={() => setShowFormatting(!showFormatting)} className={`hidden md:flex p-2.5 rounded-full transition-colors shrink-0 ${showFormatting ? 'bg-accent-indigo text-white' : 'bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`} title={t('reader.format.title')}>
-              <Type size={18} />
-            </button>
-          )}
-
-          <button onClick={() => setFocusMode(!focusMode)} className={`p-2.5 rounded-full transition-colors shrink-0 no-print ${focusMode ? 'bg-accent-cyan text-bg-primary' : 'bg-bg-card text-text-secondary hover:bg-bg-hover hover:text-text-primary'}`} title={focusMode ? t('reader.focusExit') : t('reader.focus')}>
-            <Focus size={18} />
-          </button>
-
-          <button onClick={handleShare} className="flex items-center px-3 md:px-4 py-2 text-sm font-medium text-bg-primary bg-text-primary hover:bg-bg-hover rounded-full transition-colors shrink-0 no-print" title={t('reader.share')}>
-            {copied ? <Check size={16} className="me-2" /> : <Share2 size={16} className="me-2" />}
-            <span className="hidden sm:inline">{copied ? t('reader.copied') : t('reader.share')}</span>
-          </button>
+            {showMoreMenu && (
+              <div role="menu" className="absolute top-full right-0 mt-1 w-56 bg-bg-card border border-border-subtle rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in">
+                {isMarkdown && (
+                  <>
+                    <div className="px-3 py-2 border-b border-border-subtle">
+                      <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">{t('reader.format.title')}</p>
+                      <div className="flex items-center gap-2">
+                        <AlignLeft size={16} className="text-accent-indigo shrink-0" />
+                        <select
+                          value={fontFamily}
+                          onChange={e => setFontFamily(e.target.value as FontFamily)}
+                          className="flex-1 px-3 py-2 bg-bg-secondary border border-border-subtle text-text-primary rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-accent-indigo/50"
+                        >
+                          <option value="Inter">Inter</option>
+                          <option value="Georgia">Georgia</option>
+                          <option value="Merriweather">Merriweather</option>
+                          <option value="JetBrains Mono">JetBrains Mono</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="px-3 py-2 border-b border-border-subtle">
+                      <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">{t('reader.format.spacing')}</p>
+                      <div className="flex items-center gap-1 p-1 bg-bg-secondary rounded-full">
+                        {(['compact', 'normal', 'relaxed'] as LineSpacing[]).map(s => (
+                          <button
+                            key={s}
+                            onClick={() => { setLineSpacing(s); setShowMoreMenu(false); }}
+                            className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${lineSpacing === s ? 'bg-accent-indigo text-white' : 'text-text-secondary hover:bg-bg-hover'}`}
+                          >
+                            {t(`reader.format.${s}`)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+                <button
+                  onClick={() => { onToggleBookmark(paper.id); setShowMoreMenu(false); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-none transition-colors ${isBookmarked ? 'bg-accent-indigo/10 text-accent-indigo' : 'text-text-secondary hover:bg-bg-hover'}`}
+                >
+                  <Bookmark size={18} fill={isBookmarked ? "currentColor" : "none"} />
+                  {t('reader.bookmark')}
+                </button>
+                <button
+                  onClick={() => { setShowCitations(true); setShowMoreMenu(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-text-secondary hover:bg-bg-hover rounded-none transition-colors"
+                >
+                  <Quote size={18} />
+                  {t('reader.citations')}
+                </button>
+                <button
+                  onClick={() => { window.print(); setShowMoreMenu(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-text-secondary hover:bg-bg-hover rounded-none transition-colors"
+                >
+                  <Printer size={18} />
+                  {t('reader.print')}
+                </button>
+                {isMarkdown && (
+                  <button
+                    onClick={() => { setShowOutline(!showOutline); setShowMoreMenu(false); }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-none transition-colors ${showOutline ? 'bg-accent-cyan/10 text-accent-cyan' : 'text-text-secondary hover:bg-bg-hover'}`}
+                  >
+                    <List size={18} />
+                    {t('reader.outline')}
+                  </button>
+                )}
+                <button
+                  onClick={() => { setFocusMode(!focusMode); setShowMoreMenu(false); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-none transition-colors ${focusMode ? 'bg-accent-cyan/10 text-accent-cyan' : 'text-text-secondary hover:bg-bg-hover'}`}
+                >
+                  <Focus size={18} />
+                  {focusMode ? t('reader.focusExit') : t('reader.focus')}
+                </button>
+                <button
+                  onClick={() => { handleShare(); setShowMoreMenu(false); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-bg-primary bg-text-primary hover:bg-bg-hover rounded-none transition-colors"
+                >
+                  <Share2 size={18} />
+                  {t('reader.share')}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 </header>
 
@@ -473,7 +553,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
         )}
 
         <main id="reader-main" className="flex-1 overflow-y-auto scroll-smooth" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-          <article className="max-w-5xl mx-auto px-4 md:px-8 lg:px-12 py-8 md:py-12">
+          <article className="max-w-5xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 sm:py-8 md:py-12">
             <header className="mb-10">
               <div className="flex flex-wrap gap-2 mb-4 items-center">
                 {translatedFocusArea(paper) && (
@@ -579,14 +659,14 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
                     {displayContent || '*Nothing to display*'}
                   </ReactMarkdown>
                 </div>
-                <div className="mt-16 pt-8 border-t border-border-subtle flex flex-wrap justify-end gap-3">
-                  <button onClick={handleCopyContent} className="flex items-center px-4 py-2 text-sm text-text-secondary bg-bg-card hover:text-text-primary hover:bg-bg-hover rounded-full transition-colors">
+                <div className="mt-10 sm:mt-16 pt-6 sm:pt-8 border-t border-border-subtle flex flex-col sm:flex-row justify-end gap-3">
+                  <button onClick={handleCopyContent} className="flex items-center justify-center px-4 py-3 text-sm text-text-secondary bg-bg-card hover:text-text-primary hover:bg-bg-hover rounded-xl transition-colors min-h-[44px]">
                     <Copy size={16} className="me-2 text-accent-indigo" /> {t('reader.copyContent')}
                   </button>
-                  <button onClick={handleExportTxt} className="flex items-center px-4 py-2 text-sm text-text-secondary bg-bg-card hover:text-text-primary hover:bg-bg-hover rounded-full transition-colors">
+                  <button onClick={handleExportTxt} className="flex items-center justify-center px-4 py-3 text-sm text-text-secondary bg-bg-card hover:text-text-primary hover:bg-bg-hover rounded-xl transition-colors min-h-[44px]">
                     <FileDown size={16} className="me-2 text-accent-cyan" /> {t('reader.exportTxt')}
                   </button>
-                  <button onClick={handleExportMd} className="flex items-center px-4 py-2 text-sm text-text-secondary bg-bg-card hover:text-text-primary hover:bg-bg-hover rounded-full transition-colors">
+                  <button onClick={handleExportMd} className="flex items-center justify-center px-4 py-3 text-sm text-text-secondary bg-bg-card hover:text-text-primary hover:bg-bg-hover rounded-xl transition-colors min-h-[44px]">
                     <Download size={16} className="me-2 text-success" /> {t('reader.exportMd')}
                   </button>
                 </div>
@@ -655,10 +735,6 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
             )}
           </article>
         </main>
-
-        <aside className="hidden xl:flex w-[160px] shrink-0 border-s border-border-subtle bg-bg-secondary/50 items-start justify-center p-4 overflow-y-auto no-print">
-          <SidebarAd />
-        </aside>
       </div>
 
       {/* Mobile Outline Drawer */}
@@ -695,45 +771,11 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
       {showBackToTop && (
         <button
           onClick={() => scrollTo(0, true)}
-          className="fixed bottom-24 end-6 z-40 p-3 bg-bg-card border border-border-subtle text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded-full shadow-xl transition-all animate-fade-in hover:scale-110"
+          className="fixed bottom-6 end-4 z-40 p-3 bg-bg-card border border-border-subtle text-text-secondary hover:text-text-primary hover:bg-bg-hover rounded-full shadow-xl transition-all animate-fade-in hover:scale-110"
           title={t('reader.top')}
         >
           <ArrowUp size={20} />
         </button>
-      )}
-
-      {/* Floating Formatting Bar */}
-      {isMarkdown && showFormatting && (
-        <div className="absolute bottom-5 inset-x-0 flex justify-center z-40 pointer-events-none px-4">
-          <div className="pointer-events-auto flex items-center gap-3 bg-bg-card/95 backdrop-blur-md border border-border-subtle rounded-2xl px-4 py-3 shadow-2xl shadow-black/30 max-w-full overflow-x-auto no-scrollbar">
-            <div className="flex items-center gap-2 shrink-0">
-              <AlignLeft size={16} className="text-accent-indigo" />
-              <select
-                value={fontFamily}
-                onChange={e => setFontFamily(e.target.value as FontFamily)}
-                className="px-3 py-2 bg-bg-secondary border border-border-subtle text-text-primary rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-accent-indigo/50"
-              >
-                <option value="Inter">Inter</option>
-                <option value="Georgia">Georgia</option>
-                <option value="Merriweather">Merriweather</option>
-                <option value="JetBrains Mono">JetBrains Mono</option>
-              </select>
-            </div>
-            <div className="w-px h-6 bg-border-subtle shrink-0"></div>
-            <div className="flex items-center gap-1 p-1 bg-bg-secondary rounded-full shrink-0">
-              <span className="px-2 text-xs text-text-muted">{t('reader.format.spacing')}</span>
-              {(['compact', 'normal', 'relaxed'] as LineSpacing[]).map(s => (
-                <button
-                  key={s}
-                  onClick={() => setLineSpacing(s)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${lineSpacing === s ? 'bg-accent-indigo text-white' : 'text-text-secondary hover:bg-bg-hover'}`}
-                >
-                  {t(`reader.format.${s}`)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Citations Modal */}

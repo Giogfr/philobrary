@@ -280,14 +280,10 @@ function LibraryView({ currentView }: { currentView: 'library' | 'saved' }) {
     setHreflangAlternates(currentView === 'saved' ? '/saved' : '/');
   }, [currentView]);
 
-  // Global click tracker for smartlink (opens every 4 clicks)
+  // Global click tracker for smartlink (opens every 4 clicks anywhere)
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      // Track clicks on interactive elements (links, buttons, clickable cards)
-      if (target.closest('a, button, [role="button"], [onClick]')) {
-        trackClickForSmartlink();
-      }
+    const handleClick = () => {
+      trackClickForSmartlink();
     };
     document.addEventListener('click', handleClick, true);
     return () => document.removeEventListener('click', handleClick, true);

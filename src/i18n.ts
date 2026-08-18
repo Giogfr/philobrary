@@ -4486,8 +4486,17 @@ export async function googleTranslate(text: string, targetLang: SupportedLanguag
 export async function translateShortLabel(label: string, targetLang: SupportedLanguage): Promise<string> {
   if (!label || targetLang === 'en') return label;
   try {
-    const result = await googleTranslate(label, targetLang);
-    return result || label;
+    let text = label;
+    const brandMap: [string, string][] = [];
+    text = text.replace(BRAND_RE, (match) => {
+      const ph = `§B${brandMap.length}§`;
+      brandMap.push([ph, match]);
+      return ph;
+    });
+    const result = await googleTranslate(text, targetLang);
+    let out = result || label;
+    brandMap.forEach(([ph, brand]) => { out = out.replaceAll(ph, brand); });
+    return out;
   } catch (e) {
     console.warn('Short-label translation failed, using original:', e);
     return label;
@@ -4496,11 +4505,15 @@ export async function translateShortLabel(label: string, targetLang: SupportedLa
 
 /** Non-translatable tokens (code, URLs, emphasis markers) are fenced with these. */
 const PLACEHOLDER_RE = /(`[^`]*`|\[[^\]]*\]\([^)]*\)|https?:\/\/\S+|\*\*|~~|\*|__)/g;
+const BRAND_RE = /Philobrary|Sheikh Gio/g;
 
 function protectInline(text: string): { fenced: string; originals: string[] } {
   const originals: string[] = [];
   let index = 0;
   const fenced = text.replace(PLACEHOLDER_RE, (match) => {
+    originals.push(match);
+    return `§${index++}§`;
+  }).replace(BRAND_RE, (match) => {
     originals.push(match);
     return `§${index++}§`;
   });

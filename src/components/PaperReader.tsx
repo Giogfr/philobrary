@@ -378,7 +378,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
   const closeModal = (setter: (v: boolean) => void) => setter(false);
 
   return (
-    <div className={`reader-root fixed inset-0 z-[80] flex flex-col bg-bg-primary overflow-hidden ${isSepia ? 'reader-sepia' : ''} animate-fade-in`}>
+    <div className={`reader-root fixed inset-0 z-[80] flex flex-col overflow-hidden ${isSepia ? 'reader-sepia' : ''} animate-fade-in`} style={{ backgroundColor: isSepia ? undefined : 'var(--bg-secondary)' }}>
       {/* Progress Bar */}
       <div className="absolute top-0 start-0 h-1 bg-accent-indigo transition-all duration-150 z-50 progress-bar" style={{ width: `${readingProgress}%` }} />
 
@@ -388,7 +388,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
         </button>
       )}
       
-      <header className="flex items-center justify-between px-4 md:px-6 py-4 bg-bg-primary/80 backdrop-blur-md border-b border-border-subtle z-10 shrink-0 gap-3 no-print">
+      <header className="flex items-center justify-between px-4 md:px-6 py-2 bg-bg-primary/95 backdrop-blur-sm border-b border-border-subtle z-10 shrink-0 gap-3 no-print">
         <button 
           onClick={onClose}
           className="flex items-center px-3 md:px-4 py-2 text-sm font-medium text-text-secondary bg-bg-card hover:bg-bg-hover hover:text-text-primary rounded-full transition-colors shrink-0"
@@ -469,64 +469,72 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
 
             <div className="flex flex-1 overflow-hidden relative">
         {showOutline && isMarkdown && headings.length > 0 && (
-          <aside className="w-64 md:w-80 shrink-0 overflow-y-auto border-e border-border-subtle bg-bg-secondary/50 p-6 hidden md:block sidebar-enter no-print">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-6">{t('reader.contents')}</h3>
-            <ul className="space-y-3 text-sm">
+          <aside className="w-64 md:w-72 shrink-0 overflow-y-auto border-e border-border-subtle bg-bg-primary/80 backdrop-blur-sm p-5 hidden md:block sidebar-enter no-print">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-4">{t('reader.contents')}</h3>
+            <nav className="space-y-0.5 text-sm">
               {headings.map((h, i) => (
-                <li key={i} className={`${h.level === 1 ? 'ms-0 font-medium text-text-secondary' : h.level === 2 ? 'ms-4 text-text-muted' : 'ms-8 text-text-muted'} animate-slide-in-left stagger-${Math.min(i + 1, 10)}`}>
-                  <button onClick={() => jumpToHeading(h.id)} className={`hover:text-accent-cyan transition-colors block py-1 text-start w-full ${activeHeadingId === h.id ? 'text-accent-cyan font-semibold border-s-2 border-accent-cyan ps-2' : ''}`}>{h.text}</button>
+                <li key={i} className={`${h.level === 1 ? 'ms-0 font-medium text-text-secondary' : h.level === 2 ? 'ms-3 text-text-muted' : 'ms-6 text-text-muted'} transition-all duration-200`}>
+                  <button 
+                    onClick={() => jumpToHeading(h.id)} 
+                    className={`w-full text-start py-1.5 px-2.5 rounded transition-all duration-200 text-[13px] leading-snug ${
+                      activeHeadingId === h.id 
+                        ? 'text-text-primary font-semibold bg-accent-indigo/10 border-s-2 border-accent-indigo' 
+                        : 'hover:text-text-primary hover:bg-bg-hover border-s-2 border-transparent'
+                    }`}
+                  >
+                    {h.text}
+                  </button>
                 </li>
               ))}
-            </ul>
+            </nav>
           </aside>
         )}
 
-        <main id="reader-main" className="flex-1 overflow-y-auto scroll-smooth">
-          <article className="max-w-4xl mx-auto p-4 md:p-8 lg:p-12">
-            <header className="mb-12">
-              <div className="flex flex-wrap gap-2 mb-6 items-center">
+        <main id="reader-main" className="flex-1 overflow-y-auto scroll-smooth" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+          <article className="max-w-5xl mx-auto px-4 md:px-8 lg:px-12 py-8 md:py-12">
+            <header className="mb-10">
+              <div className="flex flex-wrap gap-2 mb-4 items-center">
                 {translatedFocusArea(paper) && (
-                  <span className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/30 rounded-full">
+                  <span className="px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-text-secondary bg-bg-hover border border-border-subtle rounded">
                     {translatedFocusArea(paper)}
                   </span>
                 )}
                 {paperTags.map(t => (
-                  <span key={t.id} style={{ color: t.color, backgroundColor: `${t.color}15`, borderColor: `${t.color}30` }} className="px-3 py-1 text-xs font-medium uppercase tracking-wider border rounded-full">
+                  <span key={t.id} style={{ color: t.color, backgroundColor: `${t.color}12`, borderColor: `${t.color}25` }} className="px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wider border rounded">
                     {translatedTagName(t)}
                   </span>
                 ))}
                 {isTranslating && (
-                  <span className="flex items-center px-3 py-1 text-xs font-medium text-accent-indigo bg-accent-indigo/10 border border-accent-indigo/30 rounded-full">
-                    <Sparkles size={12} className="me-1 animate-pulse" /> {t('reader.translating')}
+                  <span className="flex items-center px-2.5 py-0.5 text-[11px] font-medium text-accent-indigo bg-accent-indigo/10 border border-accent-indigo/20 rounded">
+                    <Sparkles size={11} className="me-1 animate-pulse" /> {t('reader.translating')}
                   </span>
                 )}
                 {paper.status !== 'published' && (
-                  <span className="px-3 py-1 text-xs font-medium uppercase tracking-wider text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/30 rounded-full">
+                  <span className="px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-accent-cyan bg-accent-cyan/10 border border-accent-cyan/20 rounded">
                     {paper.status}
                   </span>
                 )}
               </div>
               
-              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-text-primary mb-6 leading-tight tracking-tight">
+              <h1 className="text-2xl md:text-4xl lg:text-[2.75rem] font-semibold text-text-primary mb-5 leading-tight tracking-tight" style={{ letterSpacing: '-0.02em' }}>
                 {displayTitle}
               </h1>
               
-              <div className="flex flex-wrap items-center gap-y-4 gap-x-8 text-sm text-text-secondary border-t border-b border-border-subtle py-6">
+              <div className="flex flex-wrap items-center gap-y-3 gap-x-6 text-sm text-text-secondary pb-5 border-b border-border-subtle">
                 <div className="flex items-center">
                   <img
                     src={paper.authorPhotoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(paper.author || 'User')}&background=4F46E5&color=fff&size=80`}
                     alt={paper.author}
-                    className="w-10 h-10 rounded-full object-cover me-3 shadow-lg"
+                    className="w-8 h-8 rounded-full object-cover me-2.5"
                     onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(paper.author || 'User')}&background=4F46E5&color=fff&size=80`; }}
                   />
-                  <span className="font-medium text-text-primary text-base">{paper.author}</span>
+                  <span className="font-medium text-text-primary text-[15px]">{paper.author}</span>
                 </div>
                 
-                <div className="flex flex-col gap-1">
-                   <div className="flex items-center"><Calendar size={14} className="me-2 opacity-70" /> {formattedDate}</div>
-                   <div className="text-xs text-text-muted ms-6">{relativeDate}</div>
+                <div className="flex items-center gap-1.5">
+                   <Calendar size={13} className="opacity-60" /> {formattedDate}
                  </div>
-                 
+
                  {paper.contentType === 'google_doc' && (
                    <div className="flex items-center">
                      {paper.googleDocUrl ? (
@@ -534,30 +542,24 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
                          href={paper.googleDocUrl}
                          target="_blank"
                          rel="noreferrer"
-                         className="flex items-center px-4 py-2 text-sm font-medium text-white bg-accent-cyan hover:bg-accent-cyan/90 rounded-full transition-all shadow-lg shadow-accent-cyan/25"
+                         className="flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
                        >
-                         {t('reader.openDocs')} <ExternalLink size={16} className="ms-2" />
+                         {t('reader.openDocs')} <ExternalLink size={13} className="ms-1.5" />
                        </a>
                      ) : (
-                       <button
-                         disabled
-                         className="flex items-center px-4 py-2 text-sm font-medium text-text-muted bg-bg-secondary border border-border-subtle rounded-full opacity-50 cursor-not-allowed"
-                       >
-                         {t('reader.openDocs')} <ExternalLink size={16} className="ms-2" />
+                       <button disabled className="flex items-center px-3 py-1.5 text-xs font-medium text-text-muted bg-bg-secondary border border-border-subtle rounded opacity-50 cursor-not-allowed">
+                         {t('reader.openDocs')} <ExternalLink size={13} className="ms-1.5" />
                        </button>
                      )}
                    </div>
                   )}
 
-                <div className="flex flex-col gap-1 ms-auto">
-                  <div className="flex items-center justify-end"><Clock size={14} className="me-2 opacity-70" /> {paper.readingTimeMinutes || 0} {t('reader.minRead')} ({timeLeftMinutes} {t('reader.timeLeft')})</div>
+                <div className="flex items-center gap-4 ms-auto text-xs text-text-muted">
+                  <span className="flex items-center gap-1"><Clock size={12} className="opacity-60" /> {paper.readingTimeMinutes || 0} {t('reader.minRead')}</span>
                   {isMarkdown && (
-                    <div className="flex items-center justify-end text-xs text-text-muted"><Activity size={12} className="me-1" /> {(paper.wordCount || 0).toLocaleString()} {t('reader.words')}</div>
+                    <span className="flex items-center gap-1"><Activity size={12} className="opacity-60" /> {(paper.wordCount || 0).toLocaleString()} {t('reader.words')}</span>
                   )}
-                  <div className="flex items-center justify-end text-xs text-text-muted gap-3">
-                    <span className="flex items-center"><Eye size={12} className="me-1" /> {(paper.views || 0).toLocaleString()} {t('reader.views')}</span>
-                    <span className="flex items-center"><Bookmark size={12} className="me-1" /> {(paper.savedCount || 0).toLocaleString()}</span>
-                  </div>
+                  <span className="flex items-center gap-1"><Eye size={12} className="opacity-60" /> {(paper.views || 0).toLocaleString()}</span>
                 </div>
               </div>
             </header>
@@ -574,7 +576,7 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
 ) : (
               <>
                 <div 
-                  className="reader-canvas markdown-body max-w-[70ch] mx-auto px-6 py-10 md:p-12"
+                  className="reader-canvas markdown-body mx-auto px-6 py-10 md:px-16 md:py-12 lg:px-20"
                   style={{ 
                     '--reader-font': FONT_STACKS[fontFamily], 
                     '--reader-line-height': SPACING_VALUES[lineSpacing],
@@ -679,21 +681,30 @@ export const PaperReader: React.FC<PaperReaderProps> = ({ paper, tags, allPapers
 
       {/* Mobile Outline Drawer */}
       {showOutline && isMarkdown && headings.length > 0 && (
-        <div className="md:hidden fixed inset-0 z-[90] bg-bg-primary/60 backdrop-blur-sm flex justify-end animate-fade-in">
-          <div className="w-72 h-full bg-bg-card border-s border-border-subtle p-6 overflow-y-auto shadow-2xl sidebar-enter">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">{t('reader.contents')}</h3>
-              <button onClick={() => setShowOutline(false)} className="p-2 text-text-secondary hover:text-text-primary bg-bg-secondary hover:bg-bg-hover rounded-full transition-colors">
-                <X size={18} />
+        <div className="md:hidden fixed inset-0 z-[90] bg-black/30 backdrop-blur-sm flex justify-end animate-fade-in">
+          <div className="w-72 h-full bg-bg-primary border-s border-border-subtle p-5 overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">{t('reader.contents')}</h3>
+              <button onClick={() => setShowOutline(false)} className="p-1.5 text-text-secondary hover:text-text-primary bg-bg-secondary hover:bg-bg-hover rounded transition-colors">
+                <X size={16} />
               </button>
             </div>
-            <ul className="space-y-3 text-sm">
+            <nav className="space-y-0.5 text-sm">
               {headings.map((h, i) => (
-                <li key={i} className={`${h.level === 1 ? 'ms-0 font-medium text-text-secondary' : h.level === 2 ? 'ms-4 text-text-muted' : 'ms-8 text-text-muted'}`}>
-                  <button onClick={() => jumpToHeading(h.id)} className="hover:text-accent-cyan transition-colors block py-1 text-start w-full">{h.text}</button>
+                <li key={i} className={`${h.level === 1 ? 'ms-0 font-medium text-text-secondary' : h.level === 2 ? 'ms-3 text-text-muted' : 'ms-6 text-text-muted'}`}>
+                  <button 
+                    onClick={() => jumpToHeading(h.id)} 
+                    className={`w-full text-start py-1.5 px-2.5 rounded transition-all duration-200 text-[13px] leading-snug ${
+                      activeHeadingId === h.id 
+                        ? 'text-text-primary font-semibold bg-accent-indigo/10 border-s-2 border-accent-indigo' 
+                        : 'hover:text-text-primary hover:bg-bg-hover border-s-2 border-transparent'
+                    }`}
+                  >
+                    {h.text}
+                  </button>
                 </li>
               ))}
-            </ul>
+            </nav>
           </div>
         </div>
       )}

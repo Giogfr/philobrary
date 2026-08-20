@@ -251,28 +251,25 @@ export const PaperEditor: React.FC<PaperEditorProps> = ({ paper, initialTitle, a
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-bg-primary">
-      <header className="flex items-center justify-between px-6 py-4 border-b border-border-subtle bg-bg-primary/80 backdrop-blur-md">
-        <div className="flex items-center">
-          <button 
-            onClick={onClose}
-            className="p-2 me-4 text-text-secondary hover:text-text-primary bg-bg-card hover:bg-bg-hover rounded-full transition-all duration-300 ease-out"
-          >
-            <X size={20} />
-          </button>
-          <h2 className="text-xl font-bold text-text-primary">
-            {paper ? t('editor.edit') : t('editor.new')}
-          </h2>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <span className="hidden md:inline-flex items-center text-xs text-text-muted bg-bg-card border border-border-subtle px-3 py-1.5 rounded-full font-mono">
-            {wordCount.toLocaleString()} words • ~{readingTimeMinutes} min read
-          </span>
+      {/* Floating close button */}
+      <button 
+        onClick={onClose}
+        className="absolute top-4 end-4 z-10 p-2 text-text-secondary hover:text-text-primary bg-bg-card hover:bg-bg-hover rounded-full transition-all duration-300 ease-out shadow-lg"
+        aria-label={t('editor.close')}
+      >
+        <X size={22} />
+      </button>
 
+      {/* Floating save/status bar - only on mobile */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-10 px-4 py-3 bg-bg-primary/95 backdrop-blur-sm border-t border-border-subtle flex items-center justify-between gap-3 animate-slide-up">
+        <span className="text-xs text-text-muted bg-bg-card border border-border-subtle px-3 py-1.5 rounded-full font-mono">
+          {wordCount.toLocaleString()} words • ~{readingTimeMinutes} min read
+        </span>
+        <div className="flex items-center gap-2">
           <select 
             value={status}
             onChange={e => setStatus(e.target.value as PaperStatus)}
-            className="px-4 py-2 bg-bg-card border border-border-subtle text-text-primary rounded-full focus:outline-none focus:ring-2 focus:ring-accent-indigo/50"
+            className="px-3 py-1.5 bg-bg-card border border-border-subtle text-text-primary rounded-full focus:outline-none focus:ring-2 focus:ring-accent-indigo/50 text-sm"
           >
             <option value="draft">{t('admin.status.draft')}</option>
             <option value="scheduled">{t('admin.status.scheduled')}</option>
@@ -283,16 +280,42 @@ export const PaperEditor: React.FC<PaperEditorProps> = ({ paper, initialTitle, a
           <button 
             onClick={handleSubmit}
             disabled={!title || !author || (contentType === 'native_markdown' ? !content : !googleDocUrl)}
-            className="flex items-center px-5 py-2.5 font-medium text-white transition-all duration-300 ease-out bg-accent-indigo hover:bg-accent-cyan hover:shadow-lg hover:shadow-accent-indigo/20 rounded-full disabled:opacity-50 disabled:bg-bg-hover disabled:shadow-none disabled:cursor-not-allowed"
+            className="flex items-center px-4 py-2 font-medium text-white transition-all bg-accent-indigo hover:bg-accent-cyan rounded-full disabled:opacity-50 disabled:bg-bg-hover disabled:cursor-not-allowed btn-press"
           >
-            <Save size={18} className="me-2" />
+            <Save size={16} className="me-1.5" />
             {t('editor.save')}
           </button>
         </div>
-      </header>
+      </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-col w-full max-w-6xl mx-auto p-6 overflow-y-auto space-y-6">
+      {/* Desktop save/status bar - top right */}
+      <div className="hidden md:flex items-center gap-3 absolute top-4 end-4 z-10">
+        <span className="text-xs text-text-muted bg-bg-card border border-border-subtle px-3 py-1.5 rounded-full font-mono">
+          {wordCount.toLocaleString()} words • ~{readingTimeMinutes} min read
+        </span>
+        <select 
+          value={status}
+          onChange={e => setStatus(e.target.value as PaperStatus)}
+          className="px-3 py-1.5 bg-bg-card border border-border-subtle text-text-primary rounded-full focus:outline-none focus:ring-2 focus:ring-accent-indigo/50 text-sm"
+        >
+          <option value="draft">{t('admin.status.draft')}</option>
+          <option value="scheduled">{t('admin.status.scheduled')}</option>
+          <option value="published">{t('admin.status.published')}</option>
+          <option value="archived">{t('admin.status.archived')}</option>
+        </select>
+        
+        <button 
+          onClick={handleSubmit}
+          disabled={!title || !author || (contentType === 'native_markdown' ? !content : !googleDocUrl)}
+          className="flex items-center px-4 py-2 font-medium text-white transition-all bg-accent-indigo hover:bg-accent-cyan rounded-full disabled:opacity-50 disabled:bg-bg-hover disabled:cursor-not-allowed btn-press"
+        >
+          <Save size={16} className="me-1.5" />
+          {t('editor.save')}
+        </button>
+      </div>
+
+      <div className="flex flex-1 overflow-y-auto">
+        <div className="flex flex-col w-full max-w-6xl mx-auto p-6 md:p-8 space-y-6 pt-16 md:pt-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-1.5 md:col-span-2">
               <input 
